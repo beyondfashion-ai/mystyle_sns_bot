@@ -32,12 +32,9 @@
 
 ### 4. Community Tone & Safety
 - Keep copy energetic but respectful; avoid fanwar-inducing phrasing.
-- Review ranking/messaging to minimize humiliation and maximize re-entry motivation.
-- Encourage creator recognition without excluding non-creator supporters.
-
-### 5. Content Analytics & Feedback Loop (Self-Feed)
-- **Strict Scope:** When interpreting SNS engagement metrics (likes, views) to gauge trend weights, ONLY base analysis on content *originally generated and published by our mystyle_sns_bot*. 
-- Do not scrape or analyze random external posts to prevent blending our unique aesthetic with irrelevant or unauthorized external fan content.
+### 5. Content Analytics & Trend Scraping
+- **Scope & Sourcing:** Actively monitor and analyze high-engagement external K-POP and fashion posts (e.g., trending hashtags, viral comebacks, popular stage outfits).
+- **Application:** Use external trend data to inspire new "Vibe-Alike" AI concepts, ensuring our generated content stays relevant to current fandom interests without directly copying real artist faces/IP.
 
 ---
 
