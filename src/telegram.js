@@ -97,6 +97,16 @@ export function createTelegramBot() {
 
     const bot = new TelegramBot(token, { polling: true });
 
+    // 봇 메뉴(명령어 힌트) 설정
+    bot.setMyCommands([
+        { command: '/start', description: '봇 메뉴 열기' },
+        { command: '/dx', description: 'X(Twitter) 초안 스튜디오' },
+        { command: '/di', description: 'Instagram 화보 스튜디오' },
+        { command: '/cn', description: '카드뉴스 스튜디오' },
+        { command: '/status', description: '현재 API 호출 잔여량 보기' },
+        { command: '/listformat', description: 'DB 포맷 목록 보기' }
+    ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));
+
     function isAdmin(chatId) {
         return String(chatId) === String(adminChatId);
     }
@@ -129,33 +139,43 @@ export function createTelegramBot() {
 
     // ===== 명령어 핸들러 =====
 
-    // /start - 봇 소개
+    // /start - 봇 소개 + 메인 메뉴 버튼
     bot.onText(/\/start/, (msg) => {
         if (!isAdmin(msg.chat.id)) return;
         const welcome = [
-            '\ud83e\udd16 *mystyleKPOP SNS Bot*',
+            '\ud83e\udd16 *mystyleKPOP SNS Bot \uba54\uc778 \uba54\ub274*',
             '',
-            'AI \ud328\uc158 K-POP \ub9e4\uac70\uc9c4 \ucf58\ud150\uce20 \uad00\ub9ac \ubd07\uc785\ub2c8\ub2e4.',
+            '\uba85\ub839\uc5b4\ub97c \uc678\uc6b8 \ud544\uc694 \uc5c6\uc774 \uc544\ub798 \ubc84\ud2bc\uc744 \ub20c\ub7ec \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uc138\uc694.',
+            '(\ucc44\ud305\ucc3d \uc606\uc758 [`Menu`] \ubc84\ud2bc\uc744 \ub20c\ub7ec\ub3c4 \uba85\ub839\uc5b4 \ubaa9\ub85d\uc774 \ub098\uc635\ub2c8\ub2e4.)',
             '',
-            '*\uba85\ub839\uc5b4:*',
-            '/dx - X \ucd08\uc548 \uc0dd\uc131 (\ubaa8\ub4e0 \ud15c\ud50c\ub9bf)',
-            '/di - IG \ucd08\uc548 \uc0dd\uc131 (\uc774\ubbf8\uc9c0 \ud544\uc218)',
-            '/cn - \uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131',
-            '/post <\ud14d\uc2a4\ud2b8> - X \uc9c1\uc811 \uc791\uc131',
-            '/status - \uac8c\uc2dc \ud604\ud669 \ud655\uc778',
-            '/templates - \ud15c\ud50c\ub9bf \ubaa9\ub85d',
+            '💡 *팁: AI와 기획 회의하기*',
+            '`/askai 곧 뉴진스 컴백인데 Y2K 룩 기획해줘` 처럼 텍스트를 입력하면 AI 에디터가 도와줍니다.',
             '',
-            '*\ud3ec\ub9f7 \uad00\ub9ac (-db)*',
-            '/listformat - \ub3d9\uc801 \ud3ec\ub9f7 \ubaa9\ub85d \ud655\uc778',
-            '/delformat <ID> - \ud3ec\ub9f7 \uc0ad\uc81c',
-            '/addformat <x|instagram|both> <\ud3ec\ub9f7\uba85> (Enter)\n<\ud504\ub86c\ud504\ud2b8/\ud14d\uc2a4\ud2b8 \ub0b4\uc6a9> - \uc0c8 \ud3ec\ub9f7 \ucd94\uac00',
-            '/askai <\uc694\uccad\uc0ac\ud56d> - AI\uc640 \uc0c8 \ud3ec\ub9f7 \uc544\uc774\ub514\uc5b4 \uae30\ud68d\ud558\uae30'
+            '💡 *팁: 나만의 기획안(포맷) 저장하기*',
+            '`/addformat <x | instagram | both> <기획이름>` (엔터 후 텍스트 입력)'
         ].join('\n');
-        bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' });
+
+        const MAIN_MENU_KEYBOARD = {
+            inline_keyboard: [
+                [
+                    { text: '🐦 X 초안 뽑기', callback_data: 'menu_dx' },
+                    { text: '📸 IG 화보 뽑기', callback_data: 'menu_di' }
+                ],
+                [
+                    { text: '📰 카드뉴스 제작', callback_data: 'menu_cn' },
+                    { text: '📊 시스템 현황 (Rate Limits)', callback_data: 'menu_status' }
+                ],
+                [
+                    { text: '📋 등록된 기획 포맷 보기', callback_data: 'menu_listformat' }
+                ]
+            ]
+        };
+
+        bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown', reply_markup: MAIN_MENU_KEYBOARD });
     });
 
     // /dx - X 초안 생성
-    bot.onText(/\/dx/, async (msg) => {
+    async function handleDx(msg) {
         if (!isAdmin(msg.chat.id)) return;
 
         let draft = await getRandomFormatDraft('x');
@@ -189,10 +209,11 @@ export function createTelegramBot() {
         }
 
         await sendDraftPreview(msg.chat.id, draft);
-    });
+    }
+    bot.onText(/\/dx/, handleDx);
 
     // /di - IG 초안 생성 (이미지 필수)
-    bot.onText(/\/di/, async (msg) => {
+    async function handleDi(msg) {
         if (!isAdmin(msg.chat.id)) return;
 
         // IG는 이미지 필수 카테고리만
@@ -228,15 +249,17 @@ export function createTelegramBot() {
         }
 
         await sendDraftPreview(msg.chat.id, draft);
-    });
+    }
+    bot.onText(/\/di/, handleDi);
 
     // /cn - 카드뉴스 생성
-    bot.onText(/\/cn/, async (msg) => {
+    async function handleCn(msg) {
         if (!isAdmin(msg.chat.id)) return;
         await bot.sendMessage(msg.chat.id, '\ud83d\udcf0 \uce74\ub4dc\ub274\uc2a4 \ud0c0\uc785\uc744 \uc120\ud0dd\ud558\uc138\uc694:', {
             reply_markup: CN_TYPE_KEYBOARD,
         });
-    });
+    }
+    bot.onText(/\/cn/, handleCn);
 
     // /post <텍스트> - X 직접 작성
     bot.onText(/\/post (.+)/s, async (msg, match) => {
@@ -247,7 +270,7 @@ export function createTelegramBot() {
     });
 
     // /status - rate limit 현황
-    bot.onText(/\/status/, async (msg) => {
+    async function handleStatus(msg) {
         if (!isAdmin(msg.chat.id)) return;
 
         const status = getRateLimitStatus();
@@ -262,7 +285,8 @@ export function createTelegramBot() {
         ].join('\n');
 
         bot.sendMessage(msg.chat.id, statusText, { parse_mode: 'Markdown' });
-    });
+    }
+    bot.onText(/\/status/, handleStatus);
 
     // /templates - 하드코딩된 템플릿 목록 (레거시)
     bot.onText(/\/templates/, async (msg) => {
@@ -297,7 +321,7 @@ export function createTelegramBot() {
     });
 
     // /listformat
-    bot.onText(/\/listformat/, async (msg) => {
+    async function handleListFormat(msg) {
         if (!isAdmin(msg.chat.id)) return;
         try {
             const formats = await getFormats();
@@ -314,7 +338,8 @@ export function createTelegramBot() {
         } catch (err) {
             bot.sendMessage(msg.chat.id, `\u274c \uc624\ub958: ${err.message}`);
         }
-    });
+    }
+    bot.onText(/\/listformat/, handleListFormat);
 
     // /delformat <id>
     bot.onText(/\/delformat (.+)/, async (msg, match) => {
@@ -354,6 +379,20 @@ export function createTelegramBot() {
 
         const messageId = query.message.message_id;
         const action = query.data;
+
+        // 메인 메뉴 버튼 처리
+        if (action.startsWith('menu_')) {
+            await bot.answerCallbackQuery(query.id);
+            const mockMsg = { chat: { id: chatId } };
+            switch (action) {
+                case 'menu_dx': await handleDx(mockMsg); break;
+                case 'menu_di': await handleDi(mockMsg); break;
+                case 'menu_cn': await handleCn(mockMsg); break;
+                case 'menu_status': await handleStatus(mockMsg); break;
+                case 'menu_listformat': await handleListFormat(mockMsg); break;
+            }
+            return;
+        }
 
         // 카드뉴스 타입 선택 콜백
         if (action.startsWith('cn_type_')) {
