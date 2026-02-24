@@ -35,6 +35,10 @@
 - Review ranking/messaging to minimize humiliation and maximize re-entry motivation.
 - Encourage creator recognition without excluding non-creator supporters.
 
+### 5. Content Analytics & Feedback Loop (Self-Feed)
+- **Strict Scope:** When interpreting SNS engagement metrics (likes, views) to gauge trend weights, ONLY base analysis on content *originally generated and published by our mystyle_sns_bot*. 
+- Do not scrape or analyze random external posts to prevent blending our unique aesthetic with irrelevant or unauthorized external fan content.
+
 ---
 
 ## Required Output Format
