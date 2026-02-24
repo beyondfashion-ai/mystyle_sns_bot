@@ -144,6 +144,10 @@ export async function postToSNS({ platforms, text, imageUrls }) {
     // --- Instagram ---
     if (platforms.includes("instagram")) {
         try {
+            if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+                throw new Error("Instagram requires at least one image URL");
+            }
+
             const igAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
             const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
 
@@ -178,8 +182,8 @@ export async function postToSNS({ platforms, text, imageUrls }) {
 }
 
 /**
- * 스레드(연결 트윗)를 게시한다.
- * @param {string[]} tweets - 트윗 텍스트 배열 (첫 번째에만 BOT_DISCLOSURE 추가)
+ * 스레드(연결 트윗)를 게시한다. 각 트윗에 이미지 첨부 가능.
+ * @param {Array<{text: string, imageUrls?: string[]}>} tweets - 트윗 배열
  */
 export async function postThread(tweets) {
     const rateCheck = checkXRateLimit();
@@ -199,13 +203,26 @@ export async function postThread(tweets) {
         let previousTweetId = null;
 
         for (let i = 0; i < tweets.length; i++) {
-            const text = i === 0 ? tweets[i] + BOT_DISCLOSURE : tweets[i];
+            const item = typeof tweets[i] === 'string' ? { text: tweets[i] } : tweets[i];
+            const text = i === 0 ? item.text + BOT_DISCLOSURE : item.text;
+
+            // 이미지 업로드
+            let mediaIds = [];
+            if (item.imageUrls && Array.isArray(item.imageUrls)) {
+                for (const url of item.imageUrls.slice(0, 4)) {
+                    const response = await fetch(url);
+                    const buffer = await response.arrayBuffer();
+                    const mediaId = await client.v1.uploadMedia(Buffer.from(buffer), { mimeType: 'image/png' });
+                    mediaIds.push(mediaId);
+                }
+            }
 
             const tweetParams = {
                 text,
                 ...(previousTweetId
                     ? { reply: { in_reply_to_tweet_id: previousTweetId } }
                     : {}),
+                ...(mediaIds.length > 0 ? { media: { media_ids: mediaIds } } : {}),
             };
 
             const tweet = await client.readWrite.v2.tweet(tweetParams);
@@ -214,6 +231,73 @@ export async function postThread(tweets) {
         }
 
         return { success: true, tweets: results };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Instagram 캐러셀(다중 이미지) 게시.
+ * Graph API: 각 이미지 → media container → carousel container → publish
+ * @param {{ text: string, imageUrls: string[] }} params
+ */
+export async function postCarousel({ text, imageUrls }) {
+    if (!imageUrls || imageUrls.length < 2) {
+        return { success: false, error: 'Carousel requires at least 2 images' };
+    }
+
+    const safeText = text + BOT_DISCLOSURE;
+    const igAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
+    const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+
+    try {
+        // 1. 각 이미지 → item container 생성
+        const childIds = [];
+        for (const url of imageUrls.slice(0, 10)) {
+            const isUrlSafe = await isPubliclyAccessible(url);
+            if (!isUrlSafe) throw new Error(`Image URL not accessible: ${url}`);
+
+            const res = await fetch(`https://graph.facebook.com/v19.0/${igAccountId}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image_url: url,
+                    is_carousel_item: true,
+                    access_token: accessToken,
+                }),
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error.message);
+            childIds.push(data.id);
+        }
+
+        // 2. Carousel container 생성
+        const carouselRes = await fetch(`https://graph.facebook.com/v19.0/${igAccountId}/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                media_type: 'CAROUSEL',
+                children: childIds.join(','),
+                caption: safeText,
+                access_token: accessToken,
+            }),
+        });
+        const carouselData = await carouselRes.json();
+        if (carouselData.error) throw new Error(carouselData.error.message);
+
+        // 3. 게시
+        const publishRes = await fetch(`https://graph.facebook.com/v19.0/${igAccountId}/media_publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                creation_id: carouselData.id,
+                access_token: accessToken,
+            }),
+        });
+        const publishData = await publishRes.json();
+        if (publishData.error) throw new Error(publishData.error.message);
+
+        return { success: true, id: publishData.id };
     } catch (err) {
         return { success: false, error: err.message };
     }

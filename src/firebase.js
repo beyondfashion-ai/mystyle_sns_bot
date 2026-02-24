@@ -18,7 +18,8 @@ if (!serviceAccountPath) {
   try {
     const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
     });
     console.log("Firebase Admin SDK initialized successfully.");
   } catch (error) {

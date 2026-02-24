@@ -1,28 +1,79 @@
 import TelegramBot from 'node-telegram-bot-api';
-import { postToSNS, postThread, getRateLimitStatus } from './bot.js';
-import { getRandomDraft, getTemplateList } from './templates.js';
+import { postToSNS, postThread, postCarousel, getRateLimitStatus } from './bot.js';
+import { getRandomDraft, getTemplateList, getCardNewsData } from './templates.js';
+import { generateImageForDraft } from './imageGen.js';
+import { generateAndUploadCardNews } from './cardNews.js';
 import { getTrendWeightsPrompt } from './trendAnalyzer.js';
 import { getExternalTrendPrompt } from './trendScraper.js';
 
 // 초안 상태 관리
-const pendingDrafts = new Map(); // messageId -> { text, category, type }
-const editMode = new Map(); // chatId -> messageId
+const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
+const pendingCardNews = new Map(); // messageId -> { type, title, imageUrls, caption }
+const editMode = new Map();        // chatId -> messageId
 
-const DRAFT_KEYBOARD = {
+// 플랫폼별 인라인 버튼
+const X_DRAFT_KEYBOARD = {
     inline_keyboard: [
         [
-            { text: '✅ 승인', callback_data: 'approve' },
-            { text: '✏️ 수정', callback_data: 'edit' },
+            { text: '\u2705 X \uac8c\uc2dc', callback_data: 'approve_x' },
+            { text: '\u270f\ufe0f \uc218\uc815', callback_data: 'edit' },
         ],
         [
-            { text: '🔄 다시 생성', callback_data: 'regenerate' },
-            { text: '❌ 거부', callback_data: 'reject' },
+            { text: '\ud83d\udd04 \ub2e4\uc2dc \uc0dd\uc131', callback_data: 'regenerate_x' },
+            { text: '\u274c \uac70\ubd80', callback_data: 'reject' },
+        ],
+    ],
+};
+
+const IG_DRAFT_KEYBOARD = {
+    inline_keyboard: [
+        [
+            { text: '\u2705 IG \uac8c\uc2dc', callback_data: 'approve_ig' },
+            { text: '\u270f\ufe0f \uc218\uc815', callback_data: 'edit' },
+        ],
+        [
+            { text: '\ud83d\uddbc\ufe0f \uc774\ubbf8\uc9c0 \uc7ac\uc0dd\uc131', callback_data: 'regenerate_image' },
+            { text: '\ud83d\udd04 \ub2e4\uc2dc \uc0dd\uc131', callback_data: 'regenerate_ig' },
+        ],
+        [
+            { text: '\u274c \uac70\ubd80', callback_data: 'reject' },
+        ],
+    ],
+};
+
+function makeCnKeyboard() {
+    return {
+        inline_keyboard: [
+            [
+                { text: '\u2705 X \uc2a4\ub808\ub4dc \uac8c\uc2dc', callback_data: 'approve_cn_x' },
+                { text: '\u2705 IG \uce90\ub7ec\uc140 \uac8c\uc2dc', callback_data: 'approve_cn_ig' },
+            ],
+            [
+                { text: '\ud83d\udd04 \ub2e4\uc2dc \uc0dd\uc131', callback_data: 'regenerate_cn' },
+                { text: '\u274c \uac70\ubd80', callback_data: 'reject' },
+            ],
+        ],
+    };
+}
+
+const CN_TYPE_KEYBOARD = {
+    inline_keyboard: [
+        [
+            { text: '\ud83d\udcca \ud2b8\ub80c\ub4dc TOP 5', callback_data: 'cn_type_trend_top5' },
+        ],
+        [
+            { text: '\ud83d\udcf8 \ub8e9\ubd81 \ubd84\uc11d', callback_data: 'cn_type_lookbook' },
+        ],
+        [
+            { text: '\ud83d\udc61 \uc2a4\ud0c0\uc77c \ud301', callback_data: 'cn_type_style_tip' },
         ],
     ],
 };
 
 function formatDraftPreview(draft, prefix = '') {
-    return `📝 *${prefix}초안 미리보기*\n\n${draft.text}\n\n---\n📁 카테고리: \`${draft.category}\`\n🏷️ 타입: \`${draft.type || 'custom'}\``;
+    const platformLabel = draft.platform === 'instagram' ? '[IG]' : '[X]';
+    const imageLabel = draft.imageUrl ? '\ud83d\uddbc\ufe0f \uc774\ubbf8\uc9c0 \ud3ec\ud568' : '\ud83d\udcdd \ud14d\uc2a4\ud2b8\ub9cc';
+    return `\ud83d\udcdd *${prefix}${platformLabel} \ucd08\uc548 \ubbf8\ub9ac\ubcf4\uae30* ${imageLabel}\n\n${draft.text}\n\n---\n\ud83d\udcc1 \uce74\ud14c\uace0\ub9ac: \`${draft.category}\`\n\ud83c\udff7\ufe0f \ud0c0\uc785: \`${draft.type || 'custom'}\``;
 }
 
 /**
@@ -33,12 +84,12 @@ export function createTelegramBot() {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
     if (!token) {
-        console.error('[Telegram] TELEGRAM_BOT_TOKEN이 설정되지 않았습니다.');
+        console.error('[Telegram] TELEGRAM_BOT_TOKEN\uc774 \uc124\uc815\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.');
         return null;
     }
 
     if (!adminChatId) {
-        console.error('[Telegram] TELEGRAM_ADMIN_CHAT_ID가 설정되지 않았습니다.');
+        console.error('[Telegram] TELEGRAM_ADMIN_CHAT_ID\uac00 \uc124\uc815\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.');
         return null;
     }
 
@@ -48,60 +99,138 @@ export function createTelegramBot() {
         return String(chatId) === String(adminChatId);
     }
 
+    /**
+     * 초안 미리보기 전송 (이미지 있으면 사진, 없으면 텍스트)
+     */
     async function sendDraftPreview(chatId, draft, prefix = '') {
         const preview = formatDraftPreview(draft, prefix);
-        const sent = await bot.sendMessage(chatId, preview, {
-            parse_mode: 'Markdown',
-            reply_markup: DRAFT_KEYBOARD,
-        });
+        const keyboard = draft.platform === 'instagram' ? IG_DRAFT_KEYBOARD : X_DRAFT_KEYBOARD;
+
+        let sent;
+        if (draft.imageUrl) {
+            // 텔레그램 캡션 1024자 제한 처리
+            const caption = preview.length > 1024 ? preview.substring(0, 1021) + '...' : preview;
+            sent = await bot.sendPhoto(chatId, draft.imageUrl, {
+                caption,
+                parse_mode: 'Markdown',
+                reply_markup: keyboard,
+            });
+        } else {
+            sent = await bot.sendMessage(chatId, preview, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard,
+            });
+        }
         pendingDrafts.set(sent.message_id, draft);
         return sent;
     }
+
+    // ===== 명령어 핸들러 =====
 
     // /start - 봇 소개
     bot.onText(/\/start/, (msg) => {
         if (!isAdmin(msg.chat.id)) return;
         const welcome = [
-            '🤖 *mystyleKPOP SNS Bot*',
+            '\ud83e\udd16 *mystyleKPOP SNS Bot*',
             '',
-            'AI 패션 K-POP 매거진 콘텐츠 관리 봇입니다.',
+            'AI \ud328\uc158 K-POP \ub9e4\uac70\uc9c4 \ucf58\ud150\uce20 \uad00\ub9ac \ubd07\uc785\ub2c8\ub2e4.',
             '',
-            '*명령어:*',
-            '/draft - 새 초안 생성',
-            '/post <텍스트> - 직접 작성 초안',
-            '/status - 게시 현황 확인',
-            '/templates - 템플릿 목록',
+            '*\uba85\ub839\uc5b4:*',
+            '/dx - X \ucd08\uc548 \uc0dd\uc131 (\ubaa8\ub4e0 \ud15c\ud50c\ub9bf)',
+            '/di - IG \ucd08\uc548 \uc0dd\uc131 (\uc774\ubbf8\uc9c0 \ud544\uc218)',
+            '/cn - \uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131',
+            '/post <\ud14d\uc2a4\ud2b8> - X \uc9c1\uc811 \uc791\uc131',
+            '/status - \uac8c\uc2dc \ud604\ud669 \ud655\uc778',
+            '/templates - \ud15c\ud50c\ub9bf \ubaa9\ub85d',
         ].join('\n');
         bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' });
     });
 
-    // /draft - 랜덤 초안 생성
-    bot.onText(/\/draft/, async (msg) => {
+    // /dx - X 초안 생성
+    bot.onText(/\/dx/, async (msg) => {
         if (!isAdmin(msg.chat.id)) return;
 
         const draft = getRandomDraft();
         if (!draft) {
-            bot.sendMessage(msg.chat.id, '❌ 템플릿을 로드할 수 없습니다.');
+            bot.sendMessage(msg.chat.id, '\u274c \ud15c\ud50c\ub9bf\uc744 \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
             return;
         }
 
         const trendPrompt = await getTrendWeightsPrompt();
         const externalPrompt = await getExternalTrendPrompt();
-
         const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
-
         if (prompts) {
             draft.text = `${prompts}\n\n${draft.text}`;
+        }
+
+        draft.platform = 'x';
+        draft.imageUrl = null;
+
+        // editorial/fashion_report → 이미지 생성
+        const imageTypes = ['editorial', 'fashion_report'];
+        if (imageTypes.includes(draft.type)) {
+            try {
+                await bot.sendMessage(msg.chat.id, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911...');
+                draft.imageUrl = await generateImageForDraft(draft);
+            } catch (err) {
+                console.error('[Telegram] X \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+                await bot.sendMessage(msg.chat.id, `\u26a0\ufe0f \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328 (\ud14d\uc2a4\ud2b8\ub9cc \ucd08\uc548): ${err.message}`);
+            }
         }
 
         await sendDraftPreview(msg.chat.id, draft);
     });
 
-    // /post <텍스트> - 직접 작성
+    // /di - IG 초안 생성 (이미지 필수)
+    bot.onText(/\/di/, async (msg) => {
+        if (!isAdmin(msg.chat.id)) return;
+
+        // IG는 editorial/fashion_report만 (이미지 필수 플랫폼)
+        const draft = getRandomDraft(['editorial', 'fashion_report']);
+        if (!draft) {
+            bot.sendMessage(msg.chat.id, '\u274c \ud15c\ud50c\ub9bf\uc744 \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
+            return;
+        }
+
+        const trendPrompt = await getTrendWeightsPrompt();
+        const externalPrompt = await getExternalTrendPrompt();
+        const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        if (prompts) {
+            draft.text = `${prompts}\n\n${draft.text}`;
+        }
+
+        draft.platform = 'instagram';
+
+        try {
+            await bot.sendMessage(msg.chat.id, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911...');
+            draft.imageUrl = await generateImageForDraft(draft);
+        } catch (err) {
+            console.error('[Telegram] IG \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+            await bot.sendMessage(msg.chat.id, `\u274c IG\ub294 \uc774\ubbf8\uc9c0\uac00 \ud544\uc218\uc785\ub2c8\ub2e4. \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328: ${err.message}`);
+            return;
+        }
+
+        if (!draft.imageUrl) {
+            await bot.sendMessage(msg.chat.id, '\u274c IG\ub294 \uc774\ubbf8\uc9c0\uac00 \ud544\uc218\uc785\ub2c8\ub2e4. \uc774\ubbf8\uc9c0 \uc0dd\uc131\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
+            return;
+        }
+
+        await sendDraftPreview(msg.chat.id, draft);
+    });
+
+    // /cn - 카드뉴스 생성
+    bot.onText(/\/cn/, async (msg) => {
+        if (!isAdmin(msg.chat.id)) return;
+        await bot.sendMessage(msg.chat.id, '\ud83d\udcf0 \uce74\ub4dc\ub274\uc2a4 \ud0c0\uc785\uc744 \uc120\ud0dd\ud558\uc138\uc694:', {
+            reply_markup: CN_TYPE_KEYBOARD,
+        });
+    });
+
+    // /post <텍스트> - X 직접 작성
     bot.onText(/\/post (.+)/s, async (msg, match) => {
         if (!isAdmin(msg.chat.id)) return;
         const text = match[1].trim();
-        const draft = { text, category: 'custom', type: 'custom' };
+        const draft = { text, category: 'custom', type: 'custom', platform: 'x', imageUrl: null };
         await sendDraftPreview(msg.chat.id, draft);
     });
 
@@ -111,13 +240,13 @@ export function createTelegramBot() {
 
         const status = getRateLimitStatus();
         const statusText = [
-            '📊 *게시 현황*',
+            '\ud83d\udcca *\uac8c\uc2dc \ud604\ud669*',
             '',
-            `⏰ 시간당: ${status.hourlyCount}/${status.hourlyLimit}`,
-            `📅 일일: ${status.dailyCount}/${status.dailyLimit}`,
+            `\u23f0 \uc2dc\uac04\ub2f9: ${status.hourlyCount}/${status.hourlyLimit}`,
+            `\ud83d\udcc5 \uc77c\uc77c: ${status.dailyCount}/${status.dailyLimit}`,
             '',
-            `⏳ 시간당 리셋: ${status.hourlyResetIn}`,
-            `⏳ 일일 리셋: ${status.dailyResetIn}`,
+            `\u23f3 \uc2dc\uac04\ub2f9 \ub9ac\uc14b: ${status.hourlyResetIn}`,
+            `\u23f3 \uc77c\uc77c \ub9ac\uc14b: ${status.dailyResetIn}`,
         ].join('\n');
 
         bot.sendMessage(msg.chat.id, statusText, { parse_mode: 'Markdown' });
@@ -128,98 +257,77 @@ export function createTelegramBot() {
         if (!isAdmin(msg.chat.id)) return;
 
         const list = getTemplateList();
-        const lines = ['📋 *템플릿 목록*', ''];
+        const lines = ['\ud83d\udccb *\ud15c\ud50c\ub9bf \ubaa9\ub85d*', ''];
         for (const [cat, count] of Object.entries(list)) {
-            lines.push(`• ${cat}: ${count}개`);
+            lines.push(`\u2022 ${cat}: ${count}\uac1c`);
         }
         bot.sendMessage(msg.chat.id, lines.join('\n'), { parse_mode: 'Markdown' });
     });
 
-    // 인라인 버튼 콜백
+    // ===== 콜백 핸들러 =====
     bot.on('callback_query', async (query) => {
         const chatId = query.message.chat.id;
         if (!isAdmin(chatId)) return;
 
         const messageId = query.message.message_id;
         const action = query.data;
-        const draft = pendingDrafts.get(messageId);
 
+        // 카드뉴스 타입 선택 콜백
+        if (action.startsWith('cn_type_')) {
+            await handleCardNewsTypeSelect(bot, query, chatId, action);
+            return;
+        }
+
+        // 카드뉴스 승인/거부
+        if (action.startsWith('approve_cn_') || action === 'regenerate_cn') {
+            await handleCardNewsCallback(bot, query, chatId, messageId, action);
+            return;
+        }
+
+        // 일반 초안 콜백
+        const draft = pendingDrafts.get(messageId);
         if (!draft) {
-            await bot.answerCallbackQuery(query.id, { text: '⚠️ 초안을 찾을 수 없습니다.' });
+            await bot.answerCallbackQuery(query.id, { text: '\u26a0\ufe0f \ucd08\uc548\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.' });
             return;
         }
 
         switch (action) {
-            case 'approve': {
-                await bot.answerCallbackQuery(query.id, { text: '게시 중...' });
-                await bot.editMessageReplyMarkup(
-                    { inline_keyboard: [] },
-                    { chat_id: chatId, message_id: messageId }
-                );
-
-                try {
-                    const result = await postToSNS({
-                        platforms: ['x'],
-                        text: draft.text,
-                        imageUrls: [],
-                    });
-
-                    if (result.x && result.x.success) {
-                        await bot.sendMessage(
-                            chatId,
-                            `✅ X에 게시 완료!\n🔗 https://x.com/i/status/${result.x.id}`
-                        );
-                    } else {
-                        const error = result.x ? result.x.error : '알 수 없는 오류';
-                        await bot.sendMessage(chatId, `❌ 게시 실패: ${error}`);
-                    }
-                } catch (err) {
-                    await bot.sendMessage(chatId, `❌ 게시 중 오류: ${err.message}`);
-                }
-
-                pendingDrafts.delete(messageId);
+            case 'approve_x':
+                await handleApproveX(bot, query, chatId, messageId, draft);
                 break;
-            }
 
-            case 'edit': {
-                await bot.answerCallbackQuery(query.id, { text: '수정 모드' });
+            case 'approve_ig':
+                await handleApproveIG(bot, query, chatId, messageId, draft);
+                break;
+
+            case 'edit':
+                await bot.answerCallbackQuery(query.id, { text: '\uc218\uc815 \ubaa8\ub4dc' });
                 editMode.set(chatId, messageId);
-                await bot.sendMessage(chatId, '✏️ 수정할 텍스트를 보내주세요:');
+                await bot.sendMessage(chatId, '\u270f\ufe0f \uc218\uc815\ud560 \ud14d\uc2a4\ud2b8\ub97c \ubcf4\ub0b4\uc8fc\uc138\uc694:');
                 break;
-            }
 
-            case 'regenerate': {
-                await bot.answerCallbackQuery(query.id, { text: '다시 생성 중...' });
-                const draftType = draft.type !== 'custom' ? draft.type : null;
+            case 'regenerate_x':
+                await handleRegenerate(bot, query, chatId, messageId, draft, 'x');
+                break;
+
+            case 'regenerate_ig':
+                await handleRegenerate(bot, query, chatId, messageId, draft, 'instagram');
+                break;
+
+            case 'regenerate_image':
+                await handleRegenerateImage(bot, query, chatId, messageId, draft);
+                break;
+
+            case 'reject':
+                await bot.answerCallbackQuery(query.id, { text: '\ucd08\uc548 \ud3d0\uae30\ub428' });
                 pendingDrafts.delete(messageId);
-                await bot.editMessageReplyMarkup(
-                    { inline_keyboard: [] },
-                    { chat_id: chatId, message_id: messageId }
-                );
-
-                const newDraft = getRandomDraft(draftType);
-                if (newDraft) {
-                    await sendDraftPreview(chatId, newDraft);
-                } else {
-                    await bot.sendMessage(chatId, '❌ 새 초안 생성에 실패했습니다.');
-                }
+                await clearButtons(bot, chatId, messageId);
+                await bot.sendMessage(chatId, '\ud83d\uddd1\ufe0f \ucd08\uc548\uc774 \ud3d0\uae30\ub418\uc5c8\uc2b5\ub2c8\ub2e4.');
                 break;
-            }
-
-            case 'reject': {
-                await bot.answerCallbackQuery(query.id, { text: '초안 폐기됨' });
-                pendingDrafts.delete(messageId);
-                await bot.editMessageReplyMarkup(
-                    { inline_keyboard: [] },
-                    { chat_id: chatId, message_id: messageId }
-                );
-                await bot.sendMessage(chatId, '🗑️ 초안이 폐기되었습니다.');
-                break;
-            }
         }
     });
 
-    // 수정 모드: 사용자 메시지 수신
+    // ===== 수정 모드: 사용자 메시지 수신 =====
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         if (!isAdmin(chatId)) return;
@@ -231,38 +339,289 @@ export function createTelegramBot() {
         editMode.delete(chatId);
 
         if (!originalDraft) {
-            await bot.sendMessage(chatId, '⚠️ 원본 초안을 찾을 수 없습니다.');
+            await bot.sendMessage(chatId, '\u26a0\ufe0f \uc6d0\ubcf8 \ucd08\uc548\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
             return;
         }
 
-        // 원본 메시지 버튼 제거
-        try {
-            await bot.editMessageReplyMarkup(
-                { inline_keyboard: [] },
-                { chat_id: chatId, message_id: originalMessageId }
-            );
-        } catch (_) {
-            // 이미 제거된 경우 무시
-        }
+        await clearButtons(bot, chatId, originalMessageId);
         pendingDrafts.delete(originalMessageId);
 
-        // 수정된 텍스트로 새 초안 생성
         const editedDraft = {
             text: msg.text,
             category: originalDraft.category,
             type: originalDraft.type,
+            platform: originalDraft.platform,
+            imageUrl: originalDraft.imageUrl,
+            artist: originalDraft.artist,
         };
         await sendDraftPreview(chatId, editedDraft);
     });
 
-    console.log('[Telegram] 봇이 시작되었습니다.');
+    console.log('[Telegram] \ubd07\uc774 \uc2dc\uc791\ub418\uc5c8\uc2b5\ub2c8\ub2e4.');
     return bot;
 }
 
+// ===== 콜백 핸들러 함수들 =====
+
+async function clearButtons(bot, chatId, messageId) {
+    try {
+        await bot.editMessageReplyMarkup(
+            { inline_keyboard: [] },
+            { chat_id: chatId, message_id: messageId }
+        );
+    } catch (_) {
+        // 이미 제거된 경우 무시
+    }
+}
+
+async function handleApproveX(bot, query, chatId, messageId, draft) {
+    await bot.answerCallbackQuery(query.id, { text: 'X \uac8c\uc2dc \uc911...' });
+    await clearButtons(bot, chatId, messageId);
+
+    try {
+        const imageUrls = draft.imageUrl ? [draft.imageUrl] : [];
+        const result = await postToSNS({
+            platforms: ['x'],
+            text: draft.text,
+            imageUrls,
+        });
+
+        if (result.x && result.x.success) {
+            await bot.sendMessage(chatId, `\u2705 X\uc5d0 \uac8c\uc2dc \uc644\ub8cc!\n\ud83d\udd17 https://x.com/i/status/${result.x.id}`);
+        } else {
+            const error = result.x ? result.x.error : '\uc54c \uc218 \uc5c6\ub294 \uc624\ub958';
+            await bot.sendMessage(chatId, `\u274c \uac8c\uc2dc \uc2e4\ud328: ${error}`);
+        }
+    } catch (err) {
+        await bot.sendMessage(chatId, `\u274c \uac8c\uc2dc \uc911 \uc624\ub958: ${err.message}`);
+    }
+
+    pendingDrafts.delete(messageId);
+}
+
+async function handleApproveIG(bot, query, chatId, messageId, draft) {
+    if (!draft.imageUrl) {
+        await bot.answerCallbackQuery(query.id, { text: '\u274c \uc774\ubbf8\uc9c0\uac00 \uc5c6\uc2b5\ub2c8\ub2e4' });
+        return;
+    }
+
+    await bot.answerCallbackQuery(query.id, { text: 'IG \uac8c\uc2dc \uc911...' });
+    await clearButtons(bot, chatId, messageId);
+
+    try {
+        const result = await postToSNS({
+            platforms: ['instagram'],
+            text: draft.text,
+            imageUrls: [draft.imageUrl],
+        });
+
+        if (result.instagram && result.instagram.success) {
+            await bot.sendMessage(chatId, `\u2705 Instagram\uc5d0 \uac8c\uc2dc \uc644\ub8cc! (ID: ${result.instagram.id})`);
+        } else {
+            const error = result.instagram ? result.instagram.error : '\uc54c \uc218 \uc5c6\ub294 \uc624\ub958';
+            await bot.sendMessage(chatId, `\u274c IG \uac8c\uc2dc \uc2e4\ud328: ${error}`);
+        }
+    } catch (err) {
+        await bot.sendMessage(chatId, `\u274c IG \uac8c\uc2dc \uc911 \uc624\ub958: ${err.message}`);
+    }
+
+    pendingDrafts.delete(messageId);
+}
+
+async function handleRegenerate(bot, query, chatId, messageId, draft, platform) {
+    await bot.answerCallbackQuery(query.id, { text: '\ub2e4\uc2dc \uc0dd\uc131 \uc911...' });
+    pendingDrafts.delete(messageId);
+    await clearButtons(bot, chatId, messageId);
+
+    const categoryFilter = platform === 'instagram'
+        ? ['editorial', 'fashion_report']
+        : (draft.type !== 'custom' ? draft.type : null);
+
+    const newDraft = getRandomDraft(categoryFilter);
+    if (!newDraft) {
+        await bot.sendMessage(chatId, '\u274c \uc0c8 \ucd08\uc548 \uc0dd\uc131\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
+        return;
+    }
+
+    newDraft.platform = platform;
+    newDraft.imageUrl = null;
+
+    // 이미지 필요 여부 판단
+    const needsImage = platform === 'instagram' ||
+        (platform === 'x' && ['editorial', 'fashion_report'].includes(newDraft.type));
+
+    if (needsImage) {
+        try {
+            await bot.sendMessage(chatId, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911...');
+            newDraft.imageUrl = await generateImageForDraft(newDraft);
+        } catch (err) {
+            if (platform === 'instagram') {
+                await bot.sendMessage(chatId, `\u274c IG \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328: ${err.message}`);
+                return;
+            }
+            await bot.sendMessage(chatId, `\u26a0\ufe0f \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328 (\ud14d\uc2a4\ud2b8\ub9cc \ucd08\uc548): ${err.message}`);
+        }
+    }
+
+    await sendDraftPreview(chatId, newDraft);
+}
+
+async function handleRegenerateImage(bot, query, chatId, messageId, draft) {
+    await bot.answerCallbackQuery(query.id, { text: '\uc774\ubbf8\uc9c0 \uc7ac\uc0dd\uc131 \uc911...' });
+
+    try {
+        await bot.sendMessage(chatId, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc7ac\uc0dd\uc131 \uc911...');
+        const newImageUrl = await generateImageForDraft(draft);
+        if (!newImageUrl) {
+            await bot.sendMessage(chatId, '\u274c \uc774\ubbf8\uc9c0 \uc7ac\uc0dd\uc131\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
+            return;
+        }
+
+        pendingDrafts.delete(messageId);
+        await clearButtons(bot, chatId, messageId);
+
+        draft.imageUrl = newImageUrl;
+        await sendDraftPreview(chatId, draft);
+    } catch (err) {
+        await bot.sendMessage(chatId, `\u274c \uc774\ubbf8\uc9c0 \uc7ac\uc0dd\uc131 \uc2e4\ud328: ${err.message}`);
+    }
+}
+
+// ===== 카드뉴스 핸들러 =====
+
+async function handleCardNewsTypeSelect(bot, query, chatId, action) {
+    const cnType = action.replace('cn_type_', '');
+    await bot.answerCallbackQuery(query.id, { text: '\uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131 \uc911...' });
+
+    const cardData = getCardNewsData(cnType);
+    if (!cardData) {
+        await bot.sendMessage(chatId, '\u274c \uce74\ub4dc\ub274\uc2a4 \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
+        return;
+    }
+
+    await bot.sendMessage(chatId, '\ud83d\udcf0 \uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131 \uc911...\n\uce74\ubc84 \uc774\ubbf8\uc9c0 AI \uc0dd\uc131 + \uc2ac\ub77c\uc774\ub4dc \ub80c\ub354\ub9c1 \uc911');
+
+    try {
+        // 커버 이미지 생성
+        let coverImageUrl = null;
+        try {
+            coverImageUrl = await generateImageForDraft({
+                category: 'style_editorial',
+                artist: cardData.artist,
+            });
+        } catch (err) {
+            console.warn('[CardNews] \uce74\ubc84 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+        }
+
+        cardData.coverImageUrl = coverImageUrl;
+
+        // 슬라이드 생성 + Firebase 업로드
+        const imageUrls = await generateAndUploadCardNews(cardData);
+
+        // 텔레그램에 앨범으로 미리보기 전송
+        const mediaGroup = imageUrls.map((url, i) => ({
+            type: 'photo',
+            media: url,
+            ...(i === 0 ? { caption: `\ud83d\udcf0 *${cardData.title}*\n\n${cardData.caption || ''}\n\n\uc2ac\ub77c\uc774\ub4dc ${imageUrls.length}\uc7a5`, parse_mode: 'Markdown' } : {}),
+        }));
+
+        await bot.sendMediaGroup(chatId, mediaGroup);
+
+        // 승인 버튼
+        const sent = await bot.sendMessage(chatId, '\u2b06\ufe0f \uce74\ub4dc\ub274\uc2a4 \ubbf8\ub9ac\ubcf4\uae30 \uc644\ub8cc. \uac8c\uc2dc \ud50c\ub7ab\ud3fc\uc744 \uc120\ud0dd\ud558\uc138\uc694:', {
+            reply_markup: makeCnKeyboard(),
+        });
+
+        pendingCardNews.set(sent.message_id, {
+            type: cnType,
+            title: cardData.title,
+            caption: cardData.caption || cardData.title,
+            imageUrls,
+            artist: cardData.artist,
+        });
+    } catch (err) {
+        await bot.sendMessage(chatId, `\u274c \uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131 \uc2e4\ud328: ${err.message}`);
+    }
+}
+
+async function handleCardNewsCallback(bot, query, chatId, messageId, action) {
+    const cnData = pendingCardNews.get(messageId);
+    if (!cnData) {
+        await bot.answerCallbackQuery(query.id, { text: '\u26a0\ufe0f \uce74\ub4dc\ub274\uc2a4 \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.' });
+        return;
+    }
+
+    switch (action) {
+        case 'approve_cn_x': {
+            await bot.answerCallbackQuery(query.id, { text: 'X \uc2a4\ub808\ub4dc \uac8c\uc2dc \uc911...' });
+            await clearButtons(bot, chatId, messageId);
+
+            try {
+                // 첫 트윗에 커버 이미지 + 텍스트, 나머지는 이미지만
+                const threadItems = cnData.imageUrls.map((url, i) => ({
+                    text: i === 0 ? cnData.caption : `[${i}/${cnData.imageUrls.length - 1}]`,
+                    imageUrls: [url],
+                }));
+
+                const result = await postThread(threadItems);
+
+                if (result.success) {
+                    const firstTweetId = result.tweets[0].id;
+                    await bot.sendMessage(chatId,
+                        `\u2705 X \uc2a4\ub808\ub4dc \uac8c\uc2dc \uc644\ub8cc! (${result.tweets.length}\uac1c \ud2b8\uc717)\n\ud83d\udd17 https://x.com/i/status/${firstTweetId}`
+                    );
+                } else {
+                    await bot.sendMessage(chatId, `\u274c X \uc2a4\ub808\ub4dc \uac8c\uc2dc \uc2e4\ud328: ${result.error}`);
+                }
+            } catch (err) {
+                await bot.sendMessage(chatId, `\u274c X \uc2a4\ub808\ub4dc \uac8c\uc2dc \uc911 \uc624\ub958: ${err.message}`);
+            }
+
+            pendingCardNews.delete(messageId);
+            break;
+        }
+
+        case 'approve_cn_ig': {
+            await bot.answerCallbackQuery(query.id, { text: 'IG \uce90\ub7ec\uc140 \uac8c\uc2dc \uc911...' });
+            await clearButtons(bot, chatId, messageId);
+
+            try {
+                const result = await postCarousel({
+                    text: cnData.caption,
+                    imageUrls: cnData.imageUrls,
+                });
+
+                if (result.success) {
+                    await bot.sendMessage(chatId, `\u2705 Instagram \uce90\ub7ec\uc140 \uac8c\uc2dc \uc644\ub8cc! (ID: ${result.id})`);
+                } else {
+                    await bot.sendMessage(chatId, `\u274c IG \uce90\ub7ec\uc140 \uac8c\uc2dc \uc2e4\ud328: ${result.error}`);
+                }
+            } catch (err) {
+                await bot.sendMessage(chatId, `\u274c IG \uce90\ub7ec\uc140 \uac8c\uc2dc \uc911 \uc624\ub958: ${err.message}`);
+            }
+
+            pendingCardNews.delete(messageId);
+            break;
+        }
+
+        case 'regenerate_cn': {
+            await bot.answerCallbackQuery(query.id, { text: '\uce74\ub4dc\ub274\uc2a4 \ub2e4\uc2dc \uc0dd\uc131 \uc911...' });
+            pendingCardNews.delete(messageId);
+            await clearButtons(bot, chatId, messageId);
+
+            // 같은 타입으로 재생성
+            await handleCardNewsTypeSelect(bot, query, chatId, `cn_type_${cnData.type}`);
+            break;
+        }
+    }
+}
+
+// ===== 스케줄러용 export 함수들 =====
+
 /**
- * 스케줄러에서 호출: 자동 초안을 생성하여 관리자에게 전송한다.
+ * X 자동 초안 생성 (스케줄러에서 호출)
  */
-export async function sendScheduledDraft(bot) {
+export async function sendScheduledDraftX(bot) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     if (!bot || !adminChatId) return;
 
@@ -271,17 +630,86 @@ export async function sendScheduledDraft(bot) {
 
     const trendPrompt = await getTrendWeightsPrompt();
     const externalPrompt = await getExternalTrendPrompt();
-
     const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
-
     if (prompts) {
         draft.text = `${prompts}\n\n${draft.text}`;
     }
 
-    const preview = formatDraftPreview(draft, '[자동] ');
-    const sent = await bot.sendMessage(adminChatId, preview, {
+    draft.platform = 'x';
+    draft.imageUrl = null;
+
+    // editorial/fashion_report → 이미지 생성
+    if (['editorial', 'fashion_report'].includes(draft.type)) {
+        try {
+            draft.imageUrl = await generateImageForDraft(draft);
+        } catch (err) {
+            console.error('[Scheduler] X \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+        }
+    }
+
+    const preview = formatDraftPreview(draft, '[\uc790\ub3d9] ');
+    const keyboard = X_DRAFT_KEYBOARD;
+
+    let sent;
+    if (draft.imageUrl) {
+        const caption = preview.length > 1024 ? preview.substring(0, 1021) + '...' : preview;
+        sent = await bot.sendPhoto(adminChatId, draft.imageUrl, {
+            caption,
+            parse_mode: 'Markdown',
+            reply_markup: keyboard,
+        });
+    } else {
+        sent = await bot.sendMessage(adminChatId, preview, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard,
+        });
+    }
+    pendingDrafts.set(sent.message_id, draft);
+}
+
+/**
+ * IG 자동 초안 생성 (스케줄러에서 호출, 항상 이미지 포함)
+ */
+export async function sendScheduledDraftIG(bot) {
+    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    if (!bot || !adminChatId) return;
+
+    // IG는 이미지 필수 카테고리만
+    const draft = getRandomDraft(['editorial', 'fashion_report']);
+    if (!draft) return;
+
+    const trendPrompt = await getTrendWeightsPrompt();
+    const externalPrompt = await getExternalTrendPrompt();
+    const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+    if (prompts) {
+        draft.text = `${prompts}\n\n${draft.text}`;
+    }
+
+    draft.platform = 'instagram';
+
+    try {
+        draft.imageUrl = await generateImageForDraft(draft);
+    } catch (err) {
+        console.error('[Scheduler] IG \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+        return; // IG는 이미지 필수이므로 중단
+    }
+
+    if (!draft.imageUrl) return;
+
+    const preview = formatDraftPreview(draft, '[\uc790\ub3d9] ');
+    const caption = preview.length > 1024 ? preview.substring(0, 1021) + '...' : preview;
+
+    const sent = await bot.sendPhoto(adminChatId, draft.imageUrl, {
+        caption,
         parse_mode: 'Markdown',
-        reply_markup: DRAFT_KEYBOARD,
+        reply_markup: IG_DRAFT_KEYBOARD,
     });
     pendingDrafts.set(sent.message_id, draft);
+}
+
+/**
+ * 하위 호환성: 기존 sendScheduledDraft → X 초안으로 동작
+ */
+export async function sendScheduledDraft(bot) {
+    return sendScheduledDraftX(bot);
 }

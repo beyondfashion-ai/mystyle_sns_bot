@@ -16,7 +16,12 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd AI coding assistant instruction files\n\nCreate project-specific instruction files for Claude \\(CLAUDE.md\\),\nCodex \\(AGENTS.md\\), Gemini \\(GEMINI.md\\), and Copilot \\(.github/copilot-instructions.md\\).\nIncludes project overview, coding conventions, safety guardrails,\nlanguage/auto-commit/build rules, and known issues.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "WebFetch(domain:fal.ai)",
+      "WebFetch(domain:docs.fal.ai)",
+      "WebFetch(domain:developers.figma.com)",
+      "WebFetch(domain:www.figma.com)",
+      "WebFetch(domain:help.figma.com)"
     ]
   }
 }

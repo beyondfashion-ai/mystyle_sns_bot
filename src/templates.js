@@ -27,13 +27,20 @@ function substituteVariables(text, variables) {
 
 /**
  * 랜덤 초안을 생성한다.
- * @param {string|null} categoryFilter - 'editorial', 'fashion_report', 'open_talk' 중 하나로 필터링
+ * @param {string|string[]|null} categoryFilter - 단일 문자열 또는 배열로 필터링
  */
 export function getRandomDraft(categoryFilter = null) {
     const data = loadTemplates();
 
     const allCategories = ['editorial', 'fashion_report', 'open_talk'];
-    const categories = categoryFilter ? [categoryFilter] : allCategories;
+    let categories;
+    if (Array.isArray(categoryFilter)) {
+        categories = categoryFilter;
+    } else if (categoryFilter) {
+        categories = [categoryFilter];
+    } else {
+        categories = allCategories;
+    }
 
     const availableTemplates = [];
     for (const cat of categories) {
@@ -77,6 +84,39 @@ export function getTemplateList() {
         }
     }
     return result;
+}
+
+/**
+ * 카드뉴스 데이터를 생성한다.
+ * @param {string} type - 'trend_top5' | 'lookbook' | 'style_tip'
+ * @returns {object|null} 카드뉴스 데이터 (title, subtitle, items 등)
+ */
+export function getCardNewsData(type) {
+    const data = loadTemplates();
+    const cardnews = data.cardnews;
+    if (!cardnews || !cardnews[type]) return null;
+
+    const template = cardnews[type];
+    const artist = pickRandom(data.artists);
+    const emoji = pickRandom(data.emojis);
+    const artistTag = artist.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+
+    const title = substituteVariables(template.title, { artist, emoji, artist_tag: artistTag });
+    const subtitle = substituteVariables(template.subtitle || '', { artist, emoji, artist_tag: artistTag });
+
+    const items = template.items.map((item) => ({
+        title: substituteVariables(item.title, { artist, emoji, artist_tag: artistTag }),
+        description: substituteVariables(item.description, { artist, emoji, artist_tag: artistTag }),
+    }));
+
+    return {
+        type,
+        title,
+        subtitle,
+        items,
+        artist,
+        caption: substituteVariables(template.caption || '', { artist, emoji, artist_tag: artistTag }),
+    };
 }
 
 /**
