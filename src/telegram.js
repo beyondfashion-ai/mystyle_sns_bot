@@ -1,10 +1,12 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { postToSNS, postThread, postCarousel, getRateLimitStatus } from './bot.js';
 import { getRandomDraft, getTemplateList, getCardNewsData } from './templates.js';
-import { generateImageForDraft } from './imageGen.js';
+import { generateImageForDraft, generateCardNewsCover } from './imageGen.js';
 import { generateAndUploadCardNews } from './cardNews.js';
 import { getTrendWeightsPrompt } from './trendAnalyzer.js';
 import { getExternalTrendPrompt } from './trendScraper.js';
+import { addFormat, getFormats, deleteFormat, getRandomFormatDraft } from './formatManager.js';
+import { brainstormFormat } from './aiBrainstorm.js';
 
 // 초안 상태 관리
 const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
@@ -142,6 +144,12 @@ export function createTelegramBot() {
             '/post <\ud14d\uc2a4\ud2b8> - X \uc9c1\uc811 \uc791\uc131',
             '/status - \uac8c\uc2dc \ud604\ud669 \ud655\uc778',
             '/templates - \ud15c\ud50c\ub9bf \ubaa9\ub85d',
+            '',
+            '*\ud3ec\ub9f7 \uad00\ub9ac (-db)*',
+            '/listformat - \ub3d9\uc801 \ud3ec\ub9f7 \ubaa9\ub85d \ud655\uc778',
+            '/delformat <ID> - \ud3ec\ub9f7 \uc0ad\uc81c',
+            '/addformat <x|instagram|both> <\ud3ec\ub9f7\uba85> (Enter)\n<\ud504\ub86c\ud504\ud2b8/\ud14d\uc2a4\ud2b8 \ub0b4\uc6a9> - \uc0c8 \ud3ec\ub9f7 \ucd94\uac00',
+            '/askai <\uc694\uccad\uc0ac\ud56d> - AI\uc640 \uc0c8 \ud3ec\ub9f7 \uc544\uc774\ub514\uc5b4 \uae30\ud68d\ud558\uae30'
         ].join('\n');
         bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown' });
     });
@@ -150,7 +158,9 @@ export function createTelegramBot() {
     bot.onText(/\/dx/, async (msg) => {
         if (!isAdmin(msg.chat.id)) return;
 
-        const draft = getRandomDraft();
+        let draft = await getRandomFormatDraft('x');
+        if (!draft) draft = getRandomDraft(); // fallback
+
         if (!draft) {
             bot.sendMessage(msg.chat.id, '\u274c \ud15c\ud50c\ub9bf\uc744 \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
             return;
@@ -166,9 +176,9 @@ export function createTelegramBot() {
         draft.platform = 'x';
         draft.imageUrl = null;
 
-        // editorial/fashion_report → 이미지 생성
+        // editorial/fashion_report 또는 DB 커스텀 포맷 → 이미지 생성
         const imageTypes = ['editorial', 'fashion_report'];
-        if (imageTypes.includes(draft.type)) {
+        if (imageTypes.includes(draft.type) || draft.type.startsWith('fmt_')) {
             try {
                 await bot.sendMessage(msg.chat.id, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911...');
                 draft.imageUrl = await generateImageForDraft(draft);
@@ -185,8 +195,10 @@ export function createTelegramBot() {
     bot.onText(/\/di/, async (msg) => {
         if (!isAdmin(msg.chat.id)) return;
 
-        // IG는 editorial/fashion_report만 (이미지 필수 플랫폼)
-        const draft = getRandomDraft(['editorial', 'fashion_report']);
+        // IG는 이미지 필수 카테고리만
+        let draft = await getRandomFormatDraft('instagram');
+        if (!draft) draft = getRandomDraft(['editorial', 'fashion_report']);
+
         if (!draft) {
             bot.sendMessage(msg.chat.id, '\u274c \ud15c\ud50c\ub9bf\uc744 \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
             return;
@@ -252,16 +264,87 @@ export function createTelegramBot() {
         bot.sendMessage(msg.chat.id, statusText, { parse_mode: 'Markdown' });
     });
 
-    // /templates - 템플릿 목록
+    // /templates - 하드코딩된 템플릿 목록 (레거시)
     bot.onText(/\/templates/, async (msg) => {
         if (!isAdmin(msg.chat.id)) return;
 
         const list = getTemplateList();
-        const lines = ['\ud83d\udccb *\ud15c\ud50c\ub9bf \ubaa9\ub85d*', ''];
+        const lines = ['\ud83d\udccb *\uae30\ubcf8 \ud15c\ud50c\ub9bf (JSON)*', ''];
         for (const [cat, count] of Object.entries(list)) {
             lines.push(`\u2022 ${cat}: ${count}\uac1c`);
         }
         bot.sendMessage(msg.chat.id, lines.join('\n'), { parse_mode: 'Markdown' });
+    });
+
+    // /addformat <platform> <name> \n <text>
+    bot.onText(/\/addformat (\w+) ([^\n]+)\n([\s\S]+)/, async (msg, match) => {
+        if (!isAdmin(msg.chat.id)) return;
+        const platform = match[1].toLowerCase();
+        const name = match[2].trim();
+        const text = match[3].trim();
+
+        if (!['x', 'instagram', 'both'].includes(platform)) {
+            bot.sendMessage(msg.chat.id, '\u274c \ud50c\ub7ab\ud3fc\uc740 x, instagram, both \uc911 \ud558\ub098\uc5ec\uc57c \ud569\ub2c8\ub2e4. \uc608: `/addformat x \ucef4\ubc31\ud3ec\ub9f7`', { parse_mode: 'Markdown' });
+            return;
+        }
+
+        try {
+            const added = await addFormat(platform, name, text);
+            bot.sendMessage(msg.chat.id, `\u2705 \uc0c8\ub85c\uc6b4 DB \ud3ec\ub9f7\uc774 \ucd94\uac00\ub418\uc5c8\uc2b5\ub2c8\ub2e4!\nID: \`${added.id}\`\nName: ${added.name}`, { parse_mode: 'Markdown' });
+        } catch (err) {
+            bot.sendMessage(msg.chat.id, `\u274c \ucd94\uac00 \uc2e4\ud328: ${err.message}`);
+        }
+    });
+
+    // /listformat
+    bot.onText(/\/listformat/, async (msg) => {
+        if (!isAdmin(msg.chat.id)) return;
+        try {
+            const formats = await getFormats();
+            if (formats.length === 0) {
+                bot.sendMessage(msg.chat.id, '\ud83d\udcc1 \ud604\uc7ac \ub4f1\ub85d\ub41c DB \ud3ec\ub9f7\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. 기본 JSON 템플릿으로 떨어집니다.');
+                return;
+            }
+
+            const lines = ['\ud83d\udccb *DB \ub3d9\uc801 \ud3ec\ub9f7 \ubaa9\ub85d*\n'];
+            formats.forEach((f, i) => {
+                lines.push(`\u2022 *[${f.platform}]* ${f.name} (\`${f.id}\`)`);
+            });
+            bot.sendMessage(msg.chat.id, lines.join('\n'), { parse_mode: 'Markdown' });
+        } catch (err) {
+            bot.sendMessage(msg.chat.id, `\u274c \uc624\ub958: ${err.message}`);
+        }
+    });
+
+    // /delformat <id>
+    bot.onText(/\/delformat (.+)/, async (msg, match) => {
+        if (!isAdmin(msg.chat.id)) return;
+        const id = match[1].trim();
+        try {
+            const success = await deleteFormat(id);
+            if (success) {
+                bot.sendMessage(msg.chat.id, `\u2705 포맷 (\`${id}\`)이(가) 삭제되었습니다.`, { parse_mode: 'Markdown' });
+            } else {
+                bot.sendMessage(msg.chat.id, `\u274c 해당 ID(\`${id}\`)의 포맷을 찾을 수 없습니다.`, { parse_mode: 'Markdown' });
+            }
+        } catch (err) {
+            bot.sendMessage(msg.chat.id, `\u274c \uc624\ub958: ${err.message}`);
+        }
+    });
+
+    // /askai <요청사항> - 제미나이 AI와 포맷 브레인스토밍
+    bot.onText(/\/askai (.+)/s, async (msg, match) => {
+        if (!isAdmin(msg.chat.id)) return;
+        const requestText = match[1].trim();
+
+        await bot.sendMessage(msg.chat.id, '\ud83e\udd16 AI 에디터가 기획을 고민 중입니다... \n(이 결과물을 바로 적용하려면 `/addformat` 명령어를 쓰세요)');
+
+        try {
+            const result = await brainstormFormat('Both(통합)', requestText);
+            bot.sendMessage(msg.chat.id, result, { parse_mode: 'Markdown' });
+        } catch (err) {
+            bot.sendMessage(msg.chat.id, `\u274c AI \uc694\uccad \uc2e4\ud328: ${err.message}`);
+        }
     });
 
     // ===== 콜백 핸들러 =====
@@ -437,7 +520,9 @@ async function handleRegenerate(bot, query, chatId, messageId, draft, platform) 
         ? ['editorial', 'fashion_report']
         : (draft.type !== 'custom' ? draft.type : null);
 
-    const newDraft = getRandomDraft(categoryFilter);
+    let newDraft = await getRandomFormatDraft(platform);
+    if (!newDraft) newDraft = getRandomDraft(categoryFilter);
+
     if (!newDraft) {
         await bot.sendMessage(chatId, '\u274c \uc0c8 \ucd08\uc548 \uc0dd\uc131\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
         return;
@@ -448,7 +533,7 @@ async function handleRegenerate(bot, query, chatId, messageId, draft, platform) 
 
     // 이미지 필요 여부 판단
     const needsImage = platform === 'instagram' ||
-        (platform === 'x' && ['editorial', 'fashion_report'].includes(newDraft.type));
+        (platform === 'x' && (['editorial', 'fashion_report'].includes(newDraft.type) || newDraft.type.startsWith('fmt_')));
 
     if (needsImage) {
         try {
@@ -499,18 +584,19 @@ async function handleCardNewsTypeSelect(bot, query, chatId, action) {
         return;
     }
 
-    await bot.sendMessage(chatId, '\ud83d\udcf0 \uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131 \uc911...\n\uce74\ubc84 \uc774\ubbf8\uc9c0 AI \uc0dd\uc131 + \uc2ac\ub77c\uc774\ub4dc \ub80c\ub354\ub9c1 \uc911');
+    await bot.sendMessage(chatId, '\ud83d\udcf0 \uce74\ub4dc\ub274\uc2a4 \uc0dd\uc131 \uc911...\n\uce74\ubc84 \uc774\ubbf8\uc9c0 Recraft V3 \uc0dd\uc131 + \uc2ac\ub77c\uc774\ub4dc \ub80c\ub354\ub9c1 \uc911');
 
     try {
-        // 커버 이미지 생성
+        // 커버 이미지 생성 (Recraft V3 - 타이포그래피/포스터 특화)
         let coverImageUrl = null;
         try {
-            coverImageUrl = await generateImageForDraft({
-                category: 'style_editorial',
+            coverImageUrl = await generateCardNewsCover({
+                title: cardData.title,
                 artist: cardData.artist,
+                type: cnType,
             });
         } catch (err) {
-            console.warn('[CardNews] \uce74\ubc84 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+            console.warn('[CardNews] Recraft V3 \uce74\ubc84 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
         }
 
         cardData.coverImageUrl = coverImageUrl;
@@ -625,7 +711,9 @@ export async function sendScheduledDraftX(bot) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     if (!bot || !adminChatId) return;
 
-    const draft = getRandomDraft();
+    let draft = await getRandomFormatDraft('x');
+    if (!draft) draft = getRandomDraft();
+
     if (!draft) return;
 
     const trendPrompt = await getTrendWeightsPrompt();
@@ -638,8 +726,8 @@ export async function sendScheduledDraftX(bot) {
     draft.platform = 'x';
     draft.imageUrl = null;
 
-    // editorial/fashion_report → 이미지 생성
-    if (['editorial', 'fashion_report'].includes(draft.type)) {
+    // editorial/fashion_report 또는 DB 커스텀 포맷 → 이미지 생성
+    if (['editorial', 'fashion_report'].includes(draft.type) || draft.type.startsWith('fmt_')) {
         try {
             draft.imageUrl = await generateImageForDraft(draft);
         } catch (err) {
@@ -675,7 +763,9 @@ export async function sendScheduledDraftIG(bot) {
     if (!bot || !adminChatId) return;
 
     // IG는 이미지 필수 카테고리만
-    const draft = getRandomDraft(['editorial', 'fashion_report']);
+    let draft = await getRandomFormatDraft('instagram');
+    if (!draft) draft = getRandomDraft(['editorial', 'fashion_report']);
+
     if (!draft) return;
 
     const trendPrompt = await getTrendWeightsPrompt();
