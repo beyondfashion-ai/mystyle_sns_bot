@@ -7,7 +7,16 @@
       "WebFetch(domain:api.github.com)",
       "Bash(npm install:*)",
       "Bash(omc:*)",
-      "Bash(oh-my-claudecode:*)"
+      "Bash(oh-my-claudecode:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:claude.com)",
+      "WebFetch(domain:geminicli.com)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd AI coding assistant instruction files\n\nCreate project-specific instruction files for Claude \\(CLAUDE.md\\),\nCodex \\(AGENTS.md\\), Gemini \\(GEMINI.md\\), and Copilot \\(.github/copilot-instructions.md\\).\nIncludes project overview, coding conventions, safety guardrails,\nlanguage/auto-commit/build rules, and known issues.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(npm test:*)"
     ]
   }
 }
