@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { postToSNS, postThread, getRateLimitStatus } from './bot.js';
 import { getRandomDraft, getTemplateList } from './templates.js';
 import { getTrendWeightsPrompt } from './trendAnalyzer.js';
+import { getExternalTrendPrompt } from './trendScraper.js';
 
 // 초안 상태 관리
 const pendingDrafts = new Map(); // messageId -> { text, category, type }
@@ -85,8 +86,12 @@ export function createTelegramBot() {
         }
 
         const trendPrompt = await getTrendWeightsPrompt();
-        if (trendPrompt) {
-            draft.text = `${trendPrompt}\n\n${draft.text}`;
+        const externalPrompt = await getExternalTrendPrompt();
+
+        const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+
+        if (prompts) {
+            draft.text = `${prompts}\n\n${draft.text}`;
         }
 
         await sendDraftPreview(msg.chat.id, draft);
@@ -265,8 +270,12 @@ export async function sendScheduledDraft(bot) {
     if (!draft) return;
 
     const trendPrompt = await getTrendWeightsPrompt();
-    if (trendPrompt) {
-        draft.text = `${trendPrompt}\n\n${draft.text}`;
+    const externalPrompt = await getExternalTrendPrompt();
+
+    const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+
+    if (prompts) {
+        draft.text = `${prompts}\n\n${draft.text}`;
     }
 
     const preview = formatDraftPreview(draft, '[자동] ');

@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { sendScheduledDraft } from './telegram.js';
 import { runAnalytics } from './analytics.js';
+import { scrapeExternalTrends } from './trendScraper.js';
 
 /**
  * 자동 초안 스케줄러를 시작한다.
@@ -38,13 +39,14 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    // 매일 자정에 통계 업데이트 실행 (KST)
+    // 매일 자정에 통계 업데이트 및 외부 트렌드 수집 (KST)
     cron.schedule('0 0 * * *', async () => {
-        console.log('[Scheduler] 00:00 KST SNS 성과 분석 시작');
+        console.log('[Scheduler] 00:00 KST SNS 성과 분석 / 외부 트렌드 수집 시작');
         try {
-            await runAnalytics();
+            await runAnalytics();      // 자체 셀프 피드백
+            await scrapeExternalTrends(); // 외부 트렌드 크롤링
         } catch (err) {
-            console.error('[Scheduler] 성과 분석 실패:', err.message);
+            console.error('[Scheduler] 성과 분석 / 스크래핑 실패:', err.message);
         }
     }, { timezone: 'Asia/Seoul' });
 
