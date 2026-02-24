@@ -2,3 +2,7 @@ node_modules/
 .env
 .DS_Store
 *.log
+
+# Local AI instruction overrides (not shared)
+CLAUDE.local.md
+AGENTS.override.md
