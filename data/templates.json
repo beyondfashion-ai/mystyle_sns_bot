@@ -1,0 +1,54 @@
+{
+  "artists": [
+    "BLACKPINK", "aespa", "NewJeans", "IVE", "LE SSERAFIM",
+    "TWICE", "ITZY", "Stray Kids", "ENHYPEN", "TXT",
+    "(G)I-DLE", "NMIXX", "RIIZE", "BABYMONSTER", "ILLIT"
+  ],
+  "emojis": ["🔥", "✨", "💫", "🌟", "💜", "🖤", "💖", "⚡", "🎵", "👑"],
+  "editorial": [
+    {
+      "text": "{artist}의 차기 컴백 컨셉 예측! {emoji}\n우리 에디터가 제안하는 이 룩, 어떠세요?\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #AI_Fashion",
+      "category": "comeback_lookbook"
+    },
+    {
+      "text": "{artist} 스타일에서 영감 받은 AI 패션 에디토리얼 {emoji}\n이 무드보드가 실제 컬렉션이 된다면?\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #FashionAI",
+      "category": "style_editorial"
+    },
+    {
+      "text": "{artist}의 시그니처 스타일을 AI로 재해석! {emoji}\n가상 모델로 표현한 vibe-alike 룩\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #VibeAlike",
+      "category": "vibe_alike"
+    },
+    {
+      "text": "{artist} 최신 무대의상에서 영감 받은 룩 {emoji}\nAI 에디터의 스타일 제안을 확인해보세요\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #StageFashion",
+      "category": "stage_look"
+    }
+  ],
+  "fashion_report": [
+    {
+      "text": "📊 K-POP 패션 트렌드 리포트\n이번 주 가장 핫한 스타일: {artist} 무대 의상 분석 {emoji}\n\nAI가 예측하는 다음 트렌드는?\n\n👉 my-style.ai\n\n#mystyleKPOP #KpopFashion #TrendReport",
+      "category": "weekly_trend"
+    },
+    {
+      "text": "{artist} 공항패션 & 무대의상 AI 분석 {emoji}\n데일리 vs 스테이지 룩의 갭 차이가..!\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #AirportFashion",
+      "category": "airport_fashion"
+    },
+    {
+      "text": "{artist} MV 속 패션 키워드 분석 {emoji}\nAI가 뽑은 핵심 스타일링 포인트 TOP 3\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #MVFashion",
+      "category": "mv_analysis"
+    }
+  ],
+  "open_talk": [
+    {
+      "text": "💬 오늘의 토론\n{artist} 팬 여러분! {emoji}\n최애의 베스트 패션 모먼트는 언제인가요?\n\n댓글로 알려주세요! 👇\n\n#mystyleKPOP #{artist_tag} #KpopStyle",
+      "category": "fan_discussion"
+    },
+    {
+      "text": "AI가 만든 가상 K-POP 화보, 어떻게 생각하세요? {emoji}\n여러분의 의견이 궁금해요!\n\n👉 my-style.ai에서 직접 만들어보기\n\n#mystyleKPOP #AI_Art #KpopFashion",
+      "category": "opinion_poll"
+    },
+    {
+      "text": "🗳️ 투표 타임!\n{artist}에게 가장 어울리는 컨셉은? {emoji}\n\n1️⃣ 하이틴 캐주얼\n2️⃣ 다크 시크\n3️⃣ 로맨틱 페미닌\n4️⃣ 스트릿 힙합\n\n#mystyleKPOP #{artist_tag} #StyleVote",
+      "category": "style_vote"
+    }
+  ]
+}
