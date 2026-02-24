@@ -1,0 +1,16 @@
+{
+    "name": "mystyle-sns-bot",
+    "version": "1.0.0",
+    "description": "Standalone SNS Automation Bot for mystyleKPOP",
+    "main": "src/bot.js",
+    "scripts": {
+        "start": "node src/bot.js",
+        "test": "node scripts/test.js"
+    },
+    "dependencies": {
+        "twitter-api-v2": "^1.15.0",
+        "node-fetch": "^3.3.0",
+        "dotenv": "^16.0.0"
+    },
+    "type": "module"
+}
