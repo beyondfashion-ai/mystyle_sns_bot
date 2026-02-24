@@ -103,6 +103,7 @@ export function createTelegramBot() {
         { command: '/dx', description: 'X(Twitter) 초안 스튜디오' },
         { command: '/di', description: 'Instagram 화보 스튜디오' },
         { command: '/cn', description: '카드뉴스 스튜디오' },
+        { command: '/askai', description: 'AI와 기획 아이데이션' },
         { command: '/status', description: '현재 API 호출 잔여량 보기' },
         { command: '/listformat', description: 'DB 포맷 목록 보기' }
     ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));
@@ -157,10 +158,6 @@ export function createTelegramBot() {
 
         const MAIN_MENU_KEYBOARD = {
             inline_keyboard: [
-                [
-                    { text: '🐦 X 초안 뽑기', callback_data: 'menu_dx' },
-                    { text: '📸 IG 화보 뽑기', callback_data: 'menu_di' }
-                ],
                 [
                     { text: '📰 카드뉴스 제작', callback_data: 'menu_cn' },
                     { text: '📊 시스템 현황 (Rate Limits)', callback_data: 'menu_status' }
@@ -358,9 +355,15 @@ export function createTelegramBot() {
     });
 
     // /askai <요청사항> - 제미나이 AI와 포맷 브레인스토밍
-    bot.onText(/\/askai (.+)/s, async (msg, match) => {
+    async function handleAskAi(msg, match) {
         if (!isAdmin(msg.chat.id)) return;
-        const requestText = match[1].trim();
+
+        const requestText = match ? match[1].trim() : null;
+
+        if (!requestText) {
+            await bot.sendMessage(msg.chat.id, '🤖 AI에게 기획 아이디어를 물어보려면 텍스트와 함께 입력해주세요.\n\n예시:\n`/askai 뉴진스 컴백인데 Y2K 룩 기획해줘`', { parse_mode: 'Markdown' });
+            return;
+        }
 
         await bot.sendMessage(msg.chat.id, '\ud83e\udd16 AI 에디터가 기획을 고민 중입니다... \n(이 결과물을 바로 적용하려면 `/addformat` 명령어를 쓰세요)');
 
@@ -370,7 +373,8 @@ export function createTelegramBot() {
         } catch (err) {
             bot.sendMessage(msg.chat.id, `\u274c AI \uc694\uccad \uc2e4\ud328: ${err.message}`);
         }
-    });
+    }
+    bot.onText(/\/askai(?:\s+(.+))?/s, handleAskAi);
 
     // ===== 콜백 핸들러 =====
     bot.on('callback_query', async (query) => {

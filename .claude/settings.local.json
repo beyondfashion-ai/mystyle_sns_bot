@@ -21,7 +21,21 @@
       "WebFetch(domain:docs.fal.ai)",
       "WebFetch(domain:developers.figma.com)",
       "WebFetch(domain:www.figma.com)",
-      "WebFetch(domain:help.figma.com)"
+      "WebFetch(domain:help.figma.com)",
+      "mcp__ide__getDiagnostics",
+      "Bash(node -e:*)",
+      "Bash(gh auth:*)",
+      "Bash(where:*)",
+      "Bash(winget install:*)",
+      "Bash(powershell -Command \"Invoke-WebRequest -Uri ''https://github.com/cli/cli/releases/download/v2.87.3/gh_2.87.3_windows_amd64.zip'' -OutFile ''$env:TEMP\\\\gh.zip''; Expand-Archive -Path ''$env:TEMP\\\\gh.zip'' -DestinationPath ''$env:LOCALAPPDATA\\\\gh-cli'' -Force; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"$ProgressPreference=''SilentlyContinue''; Invoke-WebRequest -Uri ''https://github.com/cli/cli/releases/download/v2.87.3/gh_2.87.3_windows_amd64.zip'' -OutFile ''C:\\\\Users\\\\cw11\\\\gh.zip'' -UseBasicParsing; Expand-Archive -Path ''C:\\\\Users\\\\cw11\\\\gh.zip'' -DestinationPath ''C:\\\\Users\\\\cw11\\\\gh-cli'' -Force; Write-Host ''OK''\")",
+      "Bash(curl:*)",
+      "Bash(powershell Expand-Archive:*)",
+      "Bash(C:Userscw11gh-cligh_2.87.3_windows_amd64bingh.exe --version)",
+      "Bash(\"C:/Users/cw11/gh-cli/gh_2.87.3_windows_amd64/bin/gh.exe\" --version)",
+      "Bash(dir:*)",
+      "Bash(powershell \"Test-Path C:\\\\Users\\\\cw11\\\\gh-cli; if\\(Test-Path C:\\\\Users\\\\cw11\\\\gh-cli\\){Get-ChildItem C:\\\\Users\\\\cw11\\\\gh-cli -Recurse -Name | Select-Object -First 10}\")",
+      "Bash(powershell \"Test-Path C:\\\\Users\\\\cw11\\\\gh.zip; \\(Get-Item C:\\\\Users\\\\cw11\\\\gh.zip\\).Length\")"
     ]
   }
 }
