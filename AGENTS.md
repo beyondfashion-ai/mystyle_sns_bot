@@ -78,5 +78,4 @@ Required in `.env` (see `.env.example`):
 
 ## Known Bugs
 
-- `src/bot.js:12` has TypeScript type annotation in a .js file (runtime error)
-- Rate limiter (`xPostCount`) is declared but never enforced in posting logic
+None currently.

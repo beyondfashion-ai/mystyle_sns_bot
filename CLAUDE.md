@@ -81,5 +81,4 @@ npm test             # 테스트 (node scripts/test.js)
 
 ## Known Issues
 
-- `src/bot.js:12` - TypeScript 타입 어노테이션이 .js 파일에 사용됨 (수정 필요)
-- Rate limiter 변수(`xPostCount`)가 선언만 되고 실제 게시 로직에 미적용
+None currently.

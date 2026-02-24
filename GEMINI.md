@@ -69,5 +69,4 @@ INSTAGRAM_BUSINESS_ACCOUNT_ID, INSTAGRAM_ACCESS_TOKEN
 
 ## 알려진 이슈
 
-- `src/bot.js:12` TypeScript 타입 어노테이션이 .js 파일에 존재 (수정 필요)
-- Rate limiter 변수 선언만 되고 게시 로직에 미적용
+현재 없음.
