@@ -1,6 +1,7 @@
 import { TwitterApi } from "twitter-api-v2";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import { db } from "./firebase.js";
 
 dotenv.config();
 
@@ -61,6 +62,27 @@ async function isPubliclyAccessible(url) {
         return res.ok;
     } catch (err) {
         return false;
+    }
+}
+
+/**
+ * Saves post record to Firestore for analytics tracking
+ */
+async function savePostRecord({ text, platforms, imageUrls, results }) {
+    if (!db) return;
+    try {
+        await db.collection('pending_sns_posts').add({
+            text,
+            platforms,
+            imageUrls: imageUrls || [],
+            results,
+            status: 'published',
+            publishedAt: new Date(),
+            engagement_score: 0,
+        });
+        console.log('[Bot] Post record saved to Firestore for analytics');
+    } catch (err) {
+        console.error('[Bot] Firestore 저장 실패:', err.message);
     }
 }
 
@@ -178,6 +200,12 @@ export async function postToSNS({ platforms, text, imageUrls }) {
         }
     }
 
+    // Save to Firestore if at least one platform succeeded
+    const hasSuccess = (results.x && results.x.success) || (results.instagram && results.instagram.success);
+    if (hasSuccess) {
+        await savePostRecord({ text, platforms, imageUrls, results });
+    }
+
     return results;
 }
 
@@ -230,7 +258,18 @@ export async function postThread(tweets) {
             previousTweetId = tweet.data.id;
         }
 
-        return { success: true, tweets: results };
+        const successResult = { success: true, tweets: results };
+
+        // Save thread to Firestore
+        const threadText = tweets.map(t => typeof t === 'string' ? t : t.text).join('\n---\n');
+        await savePostRecord({
+            text: threadText,
+            platforms: ['x'],
+            imageUrls: tweets.flatMap(t => (typeof t !== 'string' && t.imageUrls) ? t.imageUrls : []),
+            results: { x: { success: true, id: results[0].id } }
+        });
+
+        return successResult;
     } catch (err) {
         return { success: false, error: err.message };
     }
@@ -297,7 +336,17 @@ export async function postCarousel({ text, imageUrls }) {
         const publishData = await publishRes.json();
         if (publishData.error) throw new Error(publishData.error.message);
 
-        return { success: true, id: publishData.id };
+        const successResult = { success: true, id: publishData.id };
+
+        // Save carousel to Firestore
+        await savePostRecord({
+            text,
+            platforms: ['instagram'],
+            imageUrls,
+            results: { instagram: successResult }
+        });
+
+        return successResult;
     } catch (err) {
         return { success: false, error: err.message };
     }

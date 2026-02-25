@@ -7,6 +7,7 @@ import { getTrendWeightsPrompt } from './trendAnalyzer.js';
 import { getExternalTrendPrompt } from './trendScraper.js';
 import { addFormat, getFormats, deleteFormat, getRandomFormatDraft } from './formatManager.js';
 import { brainstormFormat } from './aiBrainstorm.js';
+import { runAnalyticsWithReport } from './analytics.js';
 
 // 초안 상태 관리
 const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
@@ -105,6 +106,7 @@ export function createTelegramBot() {
         { command: '/cn', description: '카드뉴스 스튜디오' },
         { command: '/askai', description: 'AI와 기획 아이데이션' },
         { command: '/status', description: '현재 API 호출 잔여량 보기' },
+        { command: '/report', description: '주간 성과 리포트 보기' },
         { command: '/listformat', description: 'DB 포맷 목록 보기' }
     ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));
 
@@ -375,6 +377,21 @@ export function createTelegramBot() {
         }
     }
     bot.onText(/\/askai(?:\s+(.+))?/s, handleAskAi);
+
+    // /report - 주간 성과 리포트
+    async function handleReport(msg) {
+        if (!isAdmin(msg.chat.id)) return;
+
+        await bot.sendMessage(msg.chat.id, '📊 주간 성과 리포트를 생성하는 중...');
+
+        try {
+            const report = await runAnalyticsWithReport();
+            await bot.sendMessage(msg.chat.id, report, { parse_mode: 'Markdown' });
+        } catch (err) {
+            await bot.sendMessage(msg.chat.id, `❌ 리포트 생성 실패: ${err.message}`);
+        }
+    }
+    bot.onText(/\/report/, handleReport);
 
     // ===== 콜백 핸들러 =====
     bot.on('callback_query', async (query) => {

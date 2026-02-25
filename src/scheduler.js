@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { sendScheduledDraftX, sendScheduledDraftIG } from './telegram.js';
-import { runAnalytics } from './analytics.js';
+import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
 
 /**
@@ -62,12 +62,19 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    // --- 매일 자정에 통계 업데이트 및 외부 트렌드 수집 (KST) ---
+    // --- 매일 자정에 통계 업데이트 및 외부 트렌드 수집 + 리포트 전송 (KST) ---
     cron.schedule('0 0 * * *', async () => {
-        console.log('[Scheduler] 00:00 KST SNS 성과 분석 / 외부 트렌드 수집 시작');
+        console.log('[Scheduler] 00:00 KST SNS 성과 분석 / 외부 트렌드 수집 + 리포트 전송 시작');
         try {
-            await runAnalytics();
+            const report = await runAnalyticsWithReport();
             await scrapeExternalTrends();
+
+            // Send report to admin
+            const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+            if (bot && adminChatId) {
+                await bot.sendMessage(adminChatId, report, { parse_mode: 'Markdown' });
+                console.log('[Scheduler] 주간 리포트 전송 완료');
+            }
         } catch (err) {
             console.error('[Scheduler] 성과 분석 / 스크래핑 실패:', err.message);
         }

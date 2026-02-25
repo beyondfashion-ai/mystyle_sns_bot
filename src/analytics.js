@@ -182,3 +182,119 @@ export async function runAnalytics() {
         console.error("[Analytics] Error during execution:", err);
     }
 }
+
+/**
+ * Generates a weekly performance report for Telegram
+ */
+export async function generateReport() {
+    if (!db) {
+        return '⚠️ Firebase가 설정되지 않아 리포트를 생성할 수 없습니다.';
+    }
+
+    try {
+        // Last 7 days
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+
+        const snapshot = await db.collection(PENDING_COLLECTION)
+            .where('status', '==', 'published')
+            .where('publishedAt', '>=', startDate)
+            .orderBy('publishedAt', 'desc')
+            .get();
+
+        if (snapshot.empty) {
+            return '📊 지난 7일간 게시된 포스트가 없습니다.';
+        }
+
+        const posts = [];
+        let xCount = 0, xSuccess = 0;
+        let igCount = 0, igSuccess = 0;
+        let totalScore = 0, maxScore = 0;
+        const hashtags = new Map();
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            posts.push(data);
+
+            // Platform stats
+            if (data.platforms?.includes('x')) {
+                xCount++;
+                if (data.results?.x?.success) xSuccess++;
+            }
+            if (data.platforms?.includes('instagram')) {
+                igCount++;
+                if (data.results?.instagram?.success) igSuccess++;
+            }
+
+            // Score stats
+            const score = data.engagement_score || 0;
+            totalScore += score;
+            if (score > maxScore) maxScore = score;
+
+            // Extract hashtags
+            const tags = (data.text || '').match(/#[\wㄱ-ㅎㅏ-ㅣ가-힣]+/g) || [];
+            tags.forEach(tag => {
+                hashtags.set(tag, (hashtags.get(tag) || 0) + 1);
+            });
+        });
+
+        // Top 3 posts by engagement score
+        const topPosts = posts
+            .sort((a, b) => (b.engagement_score || 0) - (a.engagement_score || 0))
+            .slice(0, 3);
+
+        // Top 3 hashtags
+        const topHashtags = Array.from(hashtags.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([tag]) => tag);
+
+        const avgScore = posts.length > 0 ? Math.round(totalScore / posts.length) : 0;
+
+        const formatDate = (date) => {
+            const d = date instanceof Date ? date : new Date(date);
+            return `${d.getMonth() + 1}/${d.getDate()}`;
+        };
+
+        const truncate = (text, maxLen = 40) => {
+            if (!text) return '(내용 없음)';
+            const cleaned = text.replace(/\n/g, ' ').trim();
+            return cleaned.length > maxLen ? cleaned.substring(0, maxLen) + '...' : cleaned;
+        };
+
+        const report = [
+            '📊 *주간 성과 리포트*',
+            '',
+            `📅 기간: ${formatDate(startDate)} ~ ${formatDate(new Date())}`,
+            '',
+            `📝 총 게시물: ${posts.length}건`,
+            `  ├ X: ${xCount}건 (성공: ${xSuccess}건)`,
+            `  └ IG: ${igCount}건 (성공: ${igSuccess}건)`,
+            '',
+            '🔥 *TOP 3 인기 게시물*',
+            ...topPosts.map((post, i) => {
+                const score = post.engagement_score || 0;
+                return `${i + 1}. [${score}점] ${truncate(post.text)}`;
+            }),
+            '',
+            `📈 총 Engagement Score: ${totalScore}`,
+            `  ├ 평균: ${avgScore}`,
+            `  └ 최고: ${maxScore}`,
+            '',
+            `🏷️ 인기 키워드: ${topHashtags.length > 0 ? topHashtags.join(', ') : '(없음)'}`,
+        ].join('\n');
+
+        return report;
+    } catch (err) {
+        console.error('[Analytics] 리포트 생성 실패:', err.message);
+        return `❌ 리포트 생성 중 오류 발생: ${err.message}`;
+    }
+}
+
+/**
+ * Runs analytics and generates a report for Telegram
+ */
+export async function runAnalyticsWithReport() {
+    await runAnalytics();
+    return await generateReport();
+}
