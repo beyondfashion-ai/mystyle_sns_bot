@@ -4,6 +4,20 @@ import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
 
 /**
+ * 스케줄러 에러를 관리자에게 텔레그램으로 알린다.
+ */
+async function notifyError(bot, jobName, error) {
+    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    if (!bot || !adminChatId) return;
+    try {
+        const msg = `⚠️ *스케줄러 에러*\nJob: \`${jobName}\`\nError: ${error.message}`;
+        await bot.sendMessage(adminChatId, msg, { parse_mode: 'Markdown' });
+    } catch (sendErr) {
+        console.error('[Scheduler] 에러 알림 전송 실패:', sendErr.message);
+    }
+}
+
+/**
  * X/IG 분리 스케줄러를 시작한다.
  * X와 IG 시간대를 오프셋하여 fal.ai 동시 부하를 방지한다.
  *
@@ -22,6 +36,7 @@ export function startScheduler(bot) {
             await sendScheduledDraftX(bot);
         } catch (err) {
             console.error('[Scheduler] X 초안 전송 실패:', err.message);
+            await notifyError(bot, 'X 초안 (10:00)', err);
         }
     }, { timezone: 'Asia/Seoul' });
 
@@ -31,6 +46,7 @@ export function startScheduler(bot) {
             await sendScheduledDraftX(bot);
         } catch (err) {
             console.error('[Scheduler] X 초안 전송 실패:', err.message);
+            await notifyError(bot, 'X 초안 (15:00)', err);
         }
     }, { timezone: 'Asia/Seoul' });
 
@@ -40,6 +56,7 @@ export function startScheduler(bot) {
             await sendScheduledDraftX(bot);
         } catch (err) {
             console.error('[Scheduler] X 초안 전송 실패:', err.message);
+            await notifyError(bot, 'X 초안 (20:00)', err);
         }
     }, { timezone: 'Asia/Seoul' });
 
@@ -50,6 +67,7 @@ export function startScheduler(bot) {
             await sendScheduledDraftIG(bot);
         } catch (err) {
             console.error('[Scheduler] IG 초안 전송 실패:', err.message);
+            await notifyError(bot, 'IG 초안 (12:00)', err);
         }
     }, { timezone: 'Asia/Seoul' });
 
@@ -59,6 +77,7 @@ export function startScheduler(bot) {
             await sendScheduledDraftIG(bot);
         } catch (err) {
             console.error('[Scheduler] IG 초안 전송 실패:', err.message);
+            await notifyError(bot, 'IG 초안 (18:00)', err);
         }
     }, { timezone: 'Asia/Seoul' });
 
@@ -77,6 +96,7 @@ export function startScheduler(bot) {
             }
         } catch (err) {
             console.error('[Scheduler] 성과 분석 / 스크래핑 실패:', err.message);
+            await notifyError(bot, '성과 분석/트렌드 (00:00)', err);
         }
     }, { timezone: 'Asia/Seoul' });
 

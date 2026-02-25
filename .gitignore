@@ -1,7 +1,11 @@
 node_modules/
 .env
+.env.local
 .DS_Store
 *.log
+
+# Firebase service account key (sensitive)
+service-account.json
 
 # Local AI instruction overrides (not shared)
 CLAUDE.local.md

@@ -98,6 +98,45 @@ export function createTelegramBot() {
 
     const bot = new TelegramBot(token, { polling: true });
 
+    // Polling/에러 핸들러
+    bot.on('polling_error', (err) => {
+        console.error('[Telegram] Polling error:', err.message);
+    });
+    bot.on('error', (err) => {
+        console.error('[Telegram] Bot error:', err.message);
+    });
+
+    // pendingDrafts / editMode TTL 정리 (30분)
+    const DRAFT_TTL_MS = 30 * 60 * 1000;
+    const draftTimestamps = new Map(); // messageId -> timestamp
+
+    const originalDraftSet = pendingDrafts.set.bind(pendingDrafts);
+    pendingDrafts.set = (key, value) => {
+        draftTimestamps.set(key, Date.now());
+        return originalDraftSet(key, value);
+    };
+    const originalDraftDelete = pendingDrafts.delete.bind(pendingDrafts);
+    pendingDrafts.delete = (key) => {
+        draftTimestamps.delete(key);
+        return originalDraftDelete(key);
+    };
+
+    setInterval(() => {
+        const now = Date.now();
+        for (const [key, ts] of draftTimestamps) {
+            if (now - ts > DRAFT_TTL_MS) {
+                pendingDrafts.delete(key);
+            }
+        }
+        for (const [chatId] of editMode) {
+            // editMode entries without a matching draft are stale
+            const msgId = editMode.get(chatId);
+            if (!pendingDrafts.has(msgId)) {
+                editMode.delete(chatId);
+            }
+        }
+    }, 5 * 60 * 1000); // 5분 주기
+
     // 봇 메뉴(명령어 힌트) 설정
     bot.setMyCommands([
         { command: '/start', description: '봇 메뉴 열기' },

@@ -10,10 +10,19 @@ dotenv.config();
 // e.g. FIREBASE_SERVICE_ACCOUNT_KEY_PATH=./service-account.json
 const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH;
 
+const disabledFeatures = [
+  'Firestore 게시물 분석 (analytics)',
+  'DB 동적 포맷 저장/조회 (formatManager)',
+  'Firebase Storage 이미지 호스팅 (cardNews)',
+];
+
 if (!serviceAccountPath) {
-  console.warn("FIREBASE_SERVICE_ACCOUNT_KEY_PATH is not set in .env.");
+  console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT_KEY_PATH 미설정. 비활성화 기능:');
+  disabledFeatures.forEach(f => console.warn(`  - ${f}`));
 } else if (!fs.existsSync(serviceAccountPath)) {
-  console.warn(`Service account key not found at ${serviceAccountPath}`);
+  console.warn(`[Firebase] 서비스 계정 키 파일 없음: ${serviceAccountPath}`);
+  console.warn('[Firebase] 비활성화 기능:');
+  disabledFeatures.forEach(f => console.warn(`  - ${f}`));
 } else {
   try {
     const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
@@ -21,9 +30,11 @@ if (!serviceAccountPath) {
       credential: admin.credential.cert(serviceAccount),
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
     });
-    console.log("Firebase Admin SDK initialized successfully.");
+    console.log('[Firebase] Admin SDK 초기화 성공');
   } catch (error) {
-    console.error("Error initializing Firebase Admin SDK:", error);
+    console.error('[Firebase] Admin SDK 초기화 실패:', error.message);
+    console.warn('[Firebase] 비활성화 기능:');
+    disabledFeatures.forEach(f => console.warn(`  - ${f}`));
   }
 }
 
