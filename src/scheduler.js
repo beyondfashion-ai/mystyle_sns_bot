@@ -4,6 +4,7 @@ import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
 import { runDailyEditorial, runWeeklyEditorial, runMonthlyEditorial, runQuarterlyEditorial } from './editorialEvolution.js';
 import { updateTrends } from './trendAnalyzer.js';
+import { getXFormatForNow, getIGFormatForNow, getFormatName } from './contentCalendar.js';
 
 /**
  * 스케줄러 에러를 관리자에게 텔레그램으로 알린다.
@@ -33,53 +34,58 @@ async function notifyError(bot, jobName, error) {
 export function startScheduler(bot) {
     // --- X 자동 초안 (10:00, 15:00, 20:00 KST) ---
     cron.schedule('0 10 * * *', async () => {
-        console.log('[Scheduler] 10:00 KST X 자동 초안 생성');
+        const format = getXFormatForNow();
+        console.log(`[Scheduler] 10:00 KST X 자동 초안 생성 (포맷: ${getFormatName(format)})`);
         try {
-            await sendScheduledDraftX(bot);
+            await sendScheduledDraftX(bot, format);
         } catch (err) {
             console.error('[Scheduler] X 초안 전송 실패:', err.message);
-            await notifyError(bot, 'X 초안 (10:00)', err);
+            await notifyError(bot, `X 초안 10:00 (${getFormatName(format)})`, err);
         }
     }, { timezone: 'Asia/Seoul' });
 
     cron.schedule('0 15 * * *', async () => {
-        console.log('[Scheduler] 15:00 KST X 자동 초안 생성');
+        const format = getXFormatForNow();
+        console.log(`[Scheduler] 15:00 KST X 자동 초안 생성 (포맷: ${getFormatName(format)})`);
         try {
-            await sendScheduledDraftX(bot);
+            await sendScheduledDraftX(bot, format);
         } catch (err) {
             console.error('[Scheduler] X 초안 전송 실패:', err.message);
-            await notifyError(bot, 'X 초안 (15:00)', err);
+            await notifyError(bot, `X 초안 15:00 (${getFormatName(format)})`, err);
         }
     }, { timezone: 'Asia/Seoul' });
 
     cron.schedule('0 20 * * *', async () => {
-        console.log('[Scheduler] 20:00 KST X 자동 초안 생성');
+        const format = getXFormatForNow();
+        console.log(`[Scheduler] 20:00 KST X 자동 초안 생성 (포맷: ${getFormatName(format)})`);
         try {
-            await sendScheduledDraftX(bot);
+            await sendScheduledDraftX(bot, format);
         } catch (err) {
             console.error('[Scheduler] X 초안 전송 실패:', err.message);
-            await notifyError(bot, 'X 초안 (20:00)', err);
+            await notifyError(bot, `X 초안 20:00 (${getFormatName(format)})`, err);
         }
     }, { timezone: 'Asia/Seoul' });
 
     // --- IG 자동 초안 (12:00, 18:00 KST) ---
     cron.schedule('0 12 * * *', async () => {
-        console.log('[Scheduler] 12:00 KST IG 자동 초안 생성 (이미지 포함)');
+        const format = getIGFormatForNow();
+        console.log(`[Scheduler] 12:00 KST IG 자동 초안 생성 (포맷: ${getFormatName(format)})`);
         try {
-            await sendScheduledDraftIG(bot);
+            await sendScheduledDraftIG(bot, format);
         } catch (err) {
             console.error('[Scheduler] IG 초안 전송 실패:', err.message);
-            await notifyError(bot, 'IG 초안 (12:00)', err);
+            await notifyError(bot, `IG 초안 12:00 (${getFormatName(format)})`, err);
         }
     }, { timezone: 'Asia/Seoul' });
 
     cron.schedule('0 18 * * *', async () => {
-        console.log('[Scheduler] 18:00 KST IG 자동 초안 생성 (이미지 포함)');
+        const format = getIGFormatForNow();
+        console.log(`[Scheduler] 18:00 KST IG 자동 초안 생성 (포맷: ${getFormatName(format)})`);
         try {
-            await sendScheduledDraftIG(bot);
+            await sendScheduledDraftIG(bot, format);
         } catch (err) {
             console.error('[Scheduler] IG 초안 전송 실패:', err.message);
-            await notifyError(bot, 'IG 초안 (18:00)', err);
+            await notifyError(bot, `IG 초안 18:00 (${getFormatName(format)})`, err);
         }
     }, { timezone: 'Asia/Seoul' });
 

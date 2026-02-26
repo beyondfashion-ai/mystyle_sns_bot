@@ -60,11 +60,17 @@ const CATEGORY_PROMPTS = {
 
 /**
  * draft 정보로 fal.ai 이미지 생성 프롬프트를 구성한다.
+ * LLM이 생성한 imageDirection이 있으면 우선 사용하고, 없으면 카테고리 기반 프롬프트로 fallback.
  */
 export function buildImagePrompt(draft) {
-    const categoryPrompt = CATEGORY_PROMPTS[draft.category] || CATEGORY_PROMPTS.style_editorial;
     const artistHint = draft.artist ? `Style inspired by ${draft.artist} aesthetic. ` : '';
 
+    // LLM이 생성한 이미지 디렉션이 있으면 우선 사용
+    if (draft.imageDirection) {
+        return `${VIBE_ALIKE_PREFIX}${artistHint}${draft.imageDirection}`;
+    }
+
+    const categoryPrompt = CATEGORY_PROMPTS[draft.category] || CATEGORY_PROMPTS.style_editorial;
     return `${VIBE_ALIKE_PREFIX}${artistHint}${categoryPrompt}`;
 }
 

@@ -9,6 +9,8 @@ import { addFormat, getFormats, deleteFormat, getRandomFormatDraft } from './for
 import { brainstormFormat } from './aiBrainstorm.js';
 import { runAnalyticsWithReport } from './analytics.js';
 import { getEditorialDirectionPrompt } from './editorialEvolution.js';
+import { generateSNSContent } from './contentGenerator.js';
+import { getXFormatForNow, getIGFormatForNow, getTodaySchedule, getFormatName, getDayName } from './contentCalendar.js';
 
 // 초안 상태 관리
 const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
@@ -140,14 +142,15 @@ export function createTelegramBot() {
 
     // 봇 메뉴(명령어 힌트) 설정
     bot.setMyCommands([
-        { command: '/start', description: '봇 메뉴 열기' },
-        { command: '/dx', description: 'X(Twitter) 초안 스튜디오' },
-        { command: '/di', description: 'Instagram 화보 스튜디오' },
+        { command: '/start', description: '메인 메뉴 + 오늘 편성표' },
+        { command: '/dx', description: 'X 초안 (Hybrid LLM)' },
+        { command: '/di', description: 'IG 화보 (Hybrid LLM)' },
         { command: '/cn', description: '카드뉴스 스튜디오' },
-        { command: '/askai', description: 'AI와 기획 아이데이션' },
-        { command: '/status', description: '현재 API 호출 잔여량 보기' },
-        { command: '/report', description: '주간 성과 리포트 보기' },
-        { command: '/listformat', description: 'DB 포맷 목록 보기' }
+        { command: '/askai', description: 'AI 기획 회의' },
+        { command: '/status', description: 'API 호출 현황' },
+        { command: '/report', description: '주간 성과 리포트' },
+        { command: '/listformat', description: 'DB 포맷 목록' },
+        { command: '/schedule', description: '오늘 콘텐츠 편성표' }
     ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));
 
     function isAdmin(chatId) {
@@ -185,113 +188,155 @@ export function createTelegramBot() {
     // /start - 봇 소개 + 메인 메뉴 버튼
     bot.onText(/\/start/, (msg) => {
         if (!isAdmin(msg.chat.id)) return;
+
+        // 오늘의 편성표 요약
+        const schedule = getTodaySchedule();
+        const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const dayName = getDayName(kstNow.getDay());
+
+        const nextX = schedule.x.find(s => s.hour > kstNow.getHours());
+        const nextIG = schedule.ig.find(s => s.hour > kstNow.getHours());
+        const nextInfo = [];
+        if (nextX) nextInfo.push(`X ${nextX.hour}:00 — ${getFormatName(nextX.format)}`);
+        if (nextIG) nextInfo.push(`IG ${nextIG.hour}:00 — ${getFormatName(nextIG.format)}`);
+
         const welcome = [
-            '\ud83e\udd16 *mystyleKPOP SNS Bot \uba54\uc778 \uba54\ub274*',
+            '🤖 *mystyleKPOP SNS Bot*',
             '',
-            '\uba85\ub839\uc5b4\ub97c \uc678\uc6b8 \ud544\uc694 \uc5c6\uc774 \uc544\ub798 \ubc84\ud2bc\uc744 \ub20c\ub7ec \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uc138\uc694.',
-            '(\ucc44\ud305\ucc3d \uc606\uc758 [`Menu`] \ubc84\ud2bc\uc744 \ub20c\ub7ec\ub3c4 \uba85\ub839\uc5b4 \ubaa9\ub85d\uc774 \ub098\uc635\ub2c8\ub2e4.)',
+            `📅 오늘 (${dayName}요일) 편성:`,
+            ...schedule.x.map(s => `  X ${s.hour}:00 — ${getFormatName(s.format)}`),
+            ...schedule.ig.map(s => `  IG ${s.hour}:00 — ${getFormatName(s.format)}`),
             '',
-            '💡 *팁: AI와 기획 회의하기*',
-            '`/askai 곧 뉴진스 컴백인데 Y2K 룩 기획해줘` 처럼 텍스트를 입력하면 AI 에디터가 도와줍니다.',
+            nextInfo.length > 0 ? `⏰ 다음 예정: ${nextInfo[0]}` : '',
             '',
-            '💡 *팁: 나만의 기획안(포맷) 저장하기*',
-            '`/addformat <x | instagram | both> <기획이름>` (엔터 후 텍스트 입력)'
-        ].join('\n');
+            '아래 버튼을 눌러 작업을 시작하세요.',
+        ].filter(Boolean).join('\n');
 
         const MAIN_MENU_KEYBOARD = {
             inline_keyboard: [
                 [
-                    { text: '📰 카드뉴스 제작', callback_data: 'menu_cn' },
-                    { text: '📊 시스템 현황 (Rate Limits)', callback_data: 'menu_status' }
+                    { text: '📝 X 초안 생성', callback_data: 'menu_dx' },
+                    { text: '📸 IG 화보 생성', callback_data: 'menu_di' },
                 ],
                 [
-                    { text: '📋 등록된 기획 포맷 보기', callback_data: 'menu_listformat' }
-                ]
+                    { text: '📰 카드뉴스 제작', callback_data: 'menu_cn' },
+                    { text: '🤖 AI 기획 회의', callback_data: 'menu_askai' },
+                ],
+                [
+                    { text: '📊 시스템 현황', callback_data: 'menu_status' },
+                    { text: '📈 주간 리포트', callback_data: 'menu_report' },
+                ],
+                [
+                    { text: '📋 포맷 관리', callback_data: 'menu_listformat' },
+                    { text: '📅 오늘 편성표', callback_data: 'menu_schedule' },
+                ],
             ]
         };
 
         bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown', reply_markup: MAIN_MENU_KEYBOARD });
     });
 
-    // /dx - X 초안 생성
-    async function handleDx(msg) {
+    // /dx - X 초안 생성 (Hybrid LLM 파이프라인)
+    async function handleDx(msg, formatOverride) {
         if (!isAdmin(msg.chat.id)) return;
 
-        let draft = await getRandomFormatDraft('x');
-        if (!draft) draft = getRandomDraft(); // fallback
+        const formatKey = formatOverride || getXFormatForNow();
+        const formatName = getFormatName(formatKey);
 
+        await bot.sendMessage(msg.chat.id, `🤖 X 초안 생성 중... (포맷: ${formatName})\nGemini→Claude 파이프라인 실행 중`);
+
+        // Step 1: Hybrid LLM으로 콘텐츠 생성 시도
+        let draft = await generateSNSContent({ platform: 'x', formatKey });
+
+        // Fallback: LLM 실패 시 기존 방식
         if (!draft) {
-            bot.sendMessage(msg.chat.id, '\u274c \ud15c\ud50c\ub9bf\uc744 \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
-            return;
-        }
+            draft = await getRandomFormatDraft('x');
+            if (!draft) draft = getRandomDraft();
 
-        const editorialPrompt = await getEditorialDirectionPrompt();
-        const trendPrompt = await getTrendWeightsPrompt();
-        const externalPrompt = await getExternalTrendPrompt();
-        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
-        if (prompts) {
-            draft.text = `${prompts}\n\n${draft.text}`;
+            if (!draft) {
+                bot.sendMessage(msg.chat.id, '❌ 초안을 생성할 수 없습니다.');
+                return;
+            }
+
+            const editorialPrompt = await getEditorialDirectionPrompt();
+            const trendPrompt = await getTrendWeightsPrompt();
+            const externalPrompt = await getExternalTrendPrompt();
+            const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+            if (prompts) {
+                draft.text = `${prompts}\n\n${draft.text}`;
+            }
         }
 
         draft.platform = 'x';
         draft.imageUrl = null;
 
-        // editorial/fashion_report 또는 DB 커스텀 포맷 → 이미지 생성
-        const imageTypes = ['editorial', 'fashion_report'];
-        if (imageTypes.includes(draft.type) || draft.type.startsWith('fmt_')) {
+        // 이미지 생성 (대부분의 포맷에서 이미지 포함)
+        const noImageFormats = ['fan_discussion'];
+        if (!noImageFormats.includes(formatKey)) {
             try {
-                await bot.sendMessage(msg.chat.id, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911...');
+                await bot.sendMessage(msg.chat.id, '🎨 이미지 생성 중...');
                 draft.imageUrl = await generateImageForDraft(draft);
             } catch (err) {
-                console.error('[Telegram] X \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
-                await bot.sendMessage(msg.chat.id, `\u26a0\ufe0f \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328 (\ud14d\uc2a4\ud2b8\ub9cc \ucd08\uc548): ${err.message}`);
+                console.error('[Telegram] X 이미지 생성 실패:', err.message);
+                await bot.sendMessage(msg.chat.id, `⚠️ 이미지 생성 실패 (텍스트만 초안): ${err.message}`);
             }
         }
 
         await sendDraftPreview(msg.chat.id, draft);
     }
-    bot.onText(/\/dx/, handleDx);
+    bot.onText(/\/dx/, (msg) => handleDx(msg));
 
-    // /di - IG 초안 생성 (이미지 필수)
-    async function handleDi(msg) {
+    // /di - IG 초안 생성 (Hybrid LLM 파이프라인 + 이미지 필수)
+    async function handleDi(msg, formatOverride) {
         if (!isAdmin(msg.chat.id)) return;
 
-        // IG는 이미지 필수 카테고리만
-        let draft = await getRandomFormatDraft('instagram');
-        if (!draft) draft = getRandomDraft(['editorial', 'fashion_report']);
+        const formatKey = formatOverride || getIGFormatForNow();
+        const formatName = getFormatName(formatKey);
 
+        await bot.sendMessage(msg.chat.id, `🤖 IG 화보 생성 중... (포맷: ${formatName})\nGemini→Claude 파이프라인 실행 중`);
+
+        // Step 1: Hybrid LLM으로 콘텐츠 생성 시도
+        let draft = await generateSNSContent({ platform: 'instagram', formatKey });
+
+        // Fallback: LLM 실패 시 기존 방식
         if (!draft) {
-            bot.sendMessage(msg.chat.id, '\u274c \ud15c\ud50c\ub9bf\uc744 \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.');
-            return;
-        }
+            draft = await getRandomFormatDraft('instagram');
+            if (!draft) draft = getRandomDraft(['editorial', 'fashion_report']);
 
-        const editorialPrompt = await getEditorialDirectionPrompt();
-        const trendPrompt = await getTrendWeightsPrompt();
-        const externalPrompt = await getExternalTrendPrompt();
-        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
-        if (prompts) {
-            draft.text = `${prompts}\n\n${draft.text}`;
+            if (!draft) {
+                bot.sendMessage(msg.chat.id, '❌ 초안을 생성할 수 없습니다.');
+                return;
+            }
+
+            const editorialPrompt = await getEditorialDirectionPrompt();
+            const trendPrompt = await getTrendWeightsPrompt();
+            const externalPrompt = await getExternalTrendPrompt();
+            const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+            if (prompts) {
+                draft.text = `${prompts}\n\n${draft.text}`;
+            }
         }
 
         draft.platform = 'instagram';
 
+        // IG는 이미지 필수
         try {
-            await bot.sendMessage(msg.chat.id, '\ud83c\udfa8 \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911...');
+            await bot.sendMessage(msg.chat.id, '🎨 이미지 생성 중...');
             draft.imageUrl = await generateImageForDraft(draft);
         } catch (err) {
-            console.error('[Telegram] IG \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
-            await bot.sendMessage(msg.chat.id, `\u274c IG\ub294 \uc774\ubbf8\uc9c0\uac00 \ud544\uc218\uc785\ub2c8\ub2e4. \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328: ${err.message}`);
+            console.error('[Telegram] IG 이미지 생성 실패:', err.message);
+            await bot.sendMessage(msg.chat.id, `❌ IG는 이미지가 필수입니다. 이미지 생성 실패: ${err.message}`);
             return;
         }
 
         if (!draft.imageUrl) {
-            await bot.sendMessage(msg.chat.id, '\u274c IG\ub294 \uc774\ubbf8\uc9c0\uac00 \ud544\uc218\uc785\ub2c8\ub2e4. \uc774\ubbf8\uc9c0 \uc0dd\uc131\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
+            await bot.sendMessage(msg.chat.id, '❌ IG는 이미지가 필수입니다. 이미지 생성에 실패했습니다.');
             return;
         }
 
         await sendDraftPreview(msg.chat.id, draft);
     }
-    bot.onText(/\/di/, handleDi);
+    bot.onText(/\/di/, (msg) => handleDi(msg));
 
     // /cn - 카드뉴스 생성
     async function handleCn(msg) {
@@ -420,6 +465,32 @@ export function createTelegramBot() {
     }
     bot.onText(/\/askai(?:\s+(.+))?/s, handleAskAi);
 
+    // /schedule - 오늘 편성표 보기
+    bot.onText(/\/schedule/, async (msg) => {
+        if (!isAdmin(msg.chat.id)) return;
+        const schedule = getTodaySchedule();
+        const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const dayName = getDayName(kstNow.getDay());
+        const currentHour = kstNow.getHours();
+
+        const lines = [
+            `📅 *오늘 (${dayName}요일) 콘텐츠 편성표*`,
+            '',
+            '*X (Twitter):*',
+            ...schedule.x.map(s => {
+                const marker = s.hour <= currentHour ? '✅' : '⏳';
+                return `  ${marker} ${s.hour}:00 — ${getFormatName(s.format)}`;
+            }),
+            '',
+            '*Instagram:*',
+            ...schedule.ig.map(s => {
+                const marker = s.hour <= currentHour ? '✅' : '⏳';
+                return `  ${marker} ${s.hour}:00 — ${getFormatName(s.format)}`;
+            }),
+        ];
+        bot.sendMessage(msg.chat.id, lines.join('\n'), { parse_mode: 'Markdown' });
+    });
+
     // /report - 주간 성과 리포트
     async function handleReport(msg) {
         if (!isAdmin(msg.chat.id)) return;
@@ -453,6 +524,35 @@ export function createTelegramBot() {
                 case 'menu_cn': await handleCn(mockMsg); break;
                 case 'menu_status': await handleStatus(mockMsg); break;
                 case 'menu_listformat': await handleListFormat(mockMsg); break;
+                case 'menu_report': await handleReport(mockMsg); break;
+                case 'menu_askai': {
+                    await bot.sendMessage(chatId, '🤖 AI에게 기획 아이디어를 물어보려면 텍스트와 함께 입력해주세요.\n\n예시:\n`/askai 뉴진스 컴백인데 Y2K 룩 기획해줘`', { parse_mode: 'Markdown' });
+                    break;
+                }
+                case 'menu_schedule': {
+                    const schedule = getTodaySchedule();
+                    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+                    const dayName = getDayName(kstNow.getDay());
+                    const currentHour = kstNow.getHours();
+
+                    const lines = [
+                        `📅 *오늘 (${dayName}요일) 콘텐츠 편성표*`,
+                        '',
+                        '*X (Twitter):*',
+                        ...schedule.x.map(s => {
+                            const marker = s.hour <= currentHour ? '✅' : '⏳';
+                            return `  ${marker} ${s.hour}:00 — ${getFormatName(s.format)}`;
+                        }),
+                        '',
+                        '*Instagram:*',
+                        ...schedule.ig.map(s => {
+                            const marker = s.hour <= currentHour ? '✅' : '⏳';
+                            return `  ${marker} ${s.hour}:00 — ${getFormatName(s.format)}`;
+                        }),
+                    ];
+                    await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'Markdown' });
+                    break;
+                }
             }
             return;
         }
@@ -807,38 +907,49 @@ async function handleCardNewsCallback(bot, query, chatId, messageId, action) {
 // ===== 스케줄러용 export 함수들 =====
 
 /**
- * X 자동 초안 생성 (스케줄러에서 호출)
+ * X 자동 초안 생성 (스케줄러에서 호출, Hybrid LLM 파이프라인 사용)
+ * @param {object} bot - 텔레그램 봇 인스턴스
+ * @param {string} [formatKey] - 콘텐츠 캘린더 포맷 키 (미지정 시 현재 시간 기반 자동 선택)
  */
-export async function sendScheduledDraftX(bot) {
+export async function sendScheduledDraftX(bot, formatKey) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     if (!bot || !adminChatId) return;
 
-    let draft = await getRandomFormatDraft('x');
-    if (!draft) draft = getRandomDraft();
+    formatKey = formatKey || getXFormatForNow();
+    const formatName = getFormatName(formatKey);
 
-    if (!draft) return;
+    // Step 1: Hybrid LLM으로 콘텐츠 생성 시도
+    let draft = await generateSNSContent({ platform: 'x', formatKey });
 
-    const editorialPrompt = await getEditorialDirectionPrompt();
-    const trendPrompt = await getTrendWeightsPrompt();
-    const externalPrompt = await getExternalTrendPrompt();
-    const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
-    if (prompts) {
-        draft.text = `${prompts}\n\n${draft.text}`;
+    // Fallback: LLM 실패 시 기존 방식
+    if (!draft) {
+        draft = await getRandomFormatDraft('x');
+        if (!draft) draft = getRandomDraft();
+        if (!draft) return;
+
+        const editorialPrompt = await getEditorialDirectionPrompt();
+        const trendPrompt = await getTrendWeightsPrompt();
+        const externalPrompt = await getExternalTrendPrompt();
+        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        if (prompts) {
+            draft.text = `${prompts}\n\n${draft.text}`;
+        }
     }
 
     draft.platform = 'x';
     draft.imageUrl = null;
 
-    // editorial/fashion_report 또는 DB 커스텀 포맷 → 이미지 생성
-    if (['editorial', 'fashion_report'].includes(draft.type) || draft.type.startsWith('fmt_')) {
+    // 이미지 생성 (fan_discussion 제외)
+    const noImageFormats = ['fan_discussion'];
+    if (!noImageFormats.includes(formatKey)) {
         try {
             draft.imageUrl = await generateImageForDraft(draft);
         } catch (err) {
-            console.error('[Scheduler] X \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+            console.error('[Scheduler] X 이미지 생성 실패:', err.message);
         }
     }
 
-    const preview = formatDraftPreview(draft, '[\uc790\ub3d9] ');
+    const preview = formatDraftPreview(draft, `[자동:${formatName}] `);
     const keyboard = X_DRAFT_KEYBOARD;
 
     let sent;
@@ -859,24 +970,33 @@ export async function sendScheduledDraftX(bot) {
 }
 
 /**
- * IG 자동 초안 생성 (스케줄러에서 호출, 항상 이미지 포함)
+ * IG 자동 초안 생성 (스케줄러에서 호출, Hybrid LLM 파이프라인 사용, 항상 이미지 포함)
+ * @param {object} bot - 텔레그램 봇 인스턴스
+ * @param {string} [formatKey] - 콘텐츠 캘린더 포맷 키 (미지정 시 현재 시간 기반 자동 선택)
  */
-export async function sendScheduledDraftIG(bot) {
+export async function sendScheduledDraftIG(bot, formatKey) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     if (!bot || !adminChatId) return;
 
-    // IG는 이미지 필수 카테고리만
-    let draft = await getRandomFormatDraft('instagram');
-    if (!draft) draft = getRandomDraft(['editorial', 'fashion_report']);
+    formatKey = formatKey || getIGFormatForNow();
+    const formatName = getFormatName(formatKey);
 
-    if (!draft) return;
+    // Step 1: Hybrid LLM으로 콘텐츠 생성 시도
+    let draft = await generateSNSContent({ platform: 'instagram', formatKey });
 
-    const editorialPrompt = await getEditorialDirectionPrompt();
-    const trendPrompt = await getTrendWeightsPrompt();
-    const externalPrompt = await getExternalTrendPrompt();
-    const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
-    if (prompts) {
-        draft.text = `${prompts}\n\n${draft.text}`;
+    // Fallback: LLM 실패 시 기존 방식
+    if (!draft) {
+        draft = await getRandomFormatDraft('instagram');
+        if (!draft) draft = getRandomDraft(['editorial', 'fashion_report']);
+        if (!draft) return;
+
+        const editorialPrompt = await getEditorialDirectionPrompt();
+        const trendPrompt = await getTrendWeightsPrompt();
+        const externalPrompt = await getExternalTrendPrompt();
+        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        if (prompts) {
+            draft.text = `${prompts}\n\n${draft.text}`;
+        }
     }
 
     draft.platform = 'instagram';
@@ -884,13 +1004,13 @@ export async function sendScheduledDraftIG(bot) {
     try {
         draft.imageUrl = await generateImageForDraft(draft);
     } catch (err) {
-        console.error('[Scheduler] IG \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc2e4\ud328:', err.message);
+        console.error('[Scheduler] IG 이미지 생성 실패:', err.message);
         return; // IG는 이미지 필수이므로 중단
     }
 
     if (!draft.imageUrl) return;
 
-    const preview = formatDraftPreview(draft, '[\uc790\ub3d9] ');
+    const preview = formatDraftPreview(draft, `[자동:${formatName}] `);
     const caption = preview.length > 1024 ? preview.substring(0, 1021) + '...' : preview;
 
     const sent = await bot.sendPhoto(adminChatId, draft.imageUrl, {
