@@ -36,23 +36,25 @@ guidelines/       # 법률, IP, K-POP 전문가 가이드라인
 ```
 
 - **Runtime:** Node.js (ES Modules, `"type": "module"`)
-- **APIs:** Twitter API v2 (`twitter-api-v2`), Instagram Graph API (REST)
+- **APIs:** Twitter API v2 (`twitter-api-v2`), Instagram Graph API (REST), Anthropic API, Gemini API
 - **Infra:** Firebase Storage (이미지 호스팅), dotenv (환경변수)
+- **Hybrid AI:** Gemini (Drafting) + Claude (Polishing) 파이프라인
 
 ## Coding Conventions
 
 - JavaScript (ES Modules) - `.js` 확장자 사용, TypeScript 문법 금지
 - `import/export` 사용 (CommonJS `require` 금지)
 - 비동기 처리는 `async/await` 패턴
-- 환경 변수는 `.env`에 관리, 코드에 하드코딩 금지
+- 환경 변수는 `.env.local`에 관리, 코드에 하드코딩 금지
 
 ## Environment Variables
 
-`.env.example` 참조. 절대 `.env` 파일을 커밋하지 않는다.
+`.env.example` 참조. 절대 `.env` 또는 `.env.local` 파일을 커밋하지 않는다.
 
 ```
 X_API_KEY, X_API_SECRET_KEY, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
 INSTAGRAM_BUSINESS_ACCOUNT_ID, INSTAGRAM_ACCESS_TOKEN
+GEMINI_API_KEY, ANTHROPIC_API_KEY, FAL_AI_KEY
 ```
 
 ## Safety Guardrails (필수 준수)
