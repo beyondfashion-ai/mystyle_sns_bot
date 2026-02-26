@@ -43,6 +43,16 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
                     await bot.sendMessage(chatId, '🤖 AI에게 기획 아이디어를 물어보려면 텍스트와 함께 입력해주세요.\n\n예시:\n`/askai 뉴진스 컴백인데 Y2K 룩 기획해줘`', { parse_mode: 'Markdown' });
                     break;
                 }
+                case 'menu_urgent': {
+                    await bot.sendMessage(chatId,
+                        '🚨 *긴급 뉴스 초안 생성*\n\n' +
+                        '주제를 함께 입력해주세요.\n\n' +
+                        '예시:\n' +
+                        '`/urgent 뉴진스 컴백 발표 Y2K 룩`\n' +
+                        '`/urgent 에스파 공항 패션 바이럴`',
+                        { parse_mode: 'Markdown' });
+                    break;
+                }
                 case 'menu_schedule': await commandHandlers.handleSchedule({ chat: { id: chatId } }); break;
                 case 'menu_scheduler': await commandHandlers.handleScheduler({ chat: { id: chatId } }); break;
                 case 'menu_history': await commandHandlers.handleHistory({ chat: { id: chatId } }); break;

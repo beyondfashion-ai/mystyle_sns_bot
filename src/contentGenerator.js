@@ -162,7 +162,7 @@ ${geminiBrief}`;
  * @param {string} [params.artist] - 아티스트명 (미지정 시 랜덤)
  * @returns {{ text: string, category: string, type: string, platform: string, artist: string, imageDirection: string|null }}
  */
-export async function generateSNSContent({ platform, formatKey, artist }) {
+export async function generateSNSContent({ platform, formatKey, artist, topic }) {
     artist = artist || pickRandom(ARTISTS);
     const format = FORMAT_DIRECTIVES[formatKey] || FORMAT_DIRECTIVES.style_editorial;
 
@@ -193,7 +193,7 @@ ${externalPrompt ? `\n${externalPrompt}\n` : ''}
 ## 이번 게시물 지시
 - **플랫폼:** ${platformGuide}
 - **포맷:** [${format.name}] — ${format.directive}
-- **아티스트:** ${artist}
+- **아티스트:** ${artist}${topic ? `\n- **긴급 뉴스/주제:** ${topic} (이 주제를 중심으로 작성하세요)` : ''}
 
 ## 핵심 규칙
 1. **K-POP 비율 최소 50% (절대 규칙)**: K-POP 맥락(아티스트/컴백/활동)이 중심. 패션은 이를 보강.

@@ -7,6 +7,7 @@ export const editMode = new Map();        // chatId -> messageId
 
 // ===== TTL 설정 =====
 const DRAFT_TTL_MS = 30 * 60 * 1000; // 30분
+const SCHEDULED_DRAFT_TTL_MS = 72 * 60 * 60 * 1000; // 72시간 (D-2 예약 초안)
 const draftTimestamps = new Map();    // messageId -> timestamp
 
 // ===== Firestore 컬렉션 =====
@@ -18,11 +19,12 @@ const CARDNEWS_COLLECTION = 'telegram_cardnews';
 async function persistDraftToFirestore(messageId, draft) {
     if (!db) return;
     try {
+        const ttl = draft.slotKey ? SCHEDULED_DRAFT_TTL_MS : DRAFT_TTL_MS;
         await db.collection(DRAFTS_COLLECTION).doc(String(messageId)).set({
             ...draft,
             status: 'pending',
             createdAt: new Date(),
-            expiresAt: new Date(Date.now() + DRAFT_TTL_MS),
+            expiresAt: new Date(Date.now() + ttl),
         });
     } catch (err) {
         console.error('[State] Firestore draft persist failed:', err.message);
@@ -128,6 +130,8 @@ export function setupTTLCleanup() {
     setInterval(() => {
         const now = Date.now();
         for (const [key, ts] of draftTimestamps) {
+            // 예약 초안(slotKey 있음)은 TTL 정리 대상에서 제외
+            if (pendingDrafts.get(key)?.slotKey) continue;
             if (now - ts > DRAFT_TTL_MS) {
                 pendingDrafts.delete(key);
             }
@@ -160,7 +164,7 @@ export async function restoreStateFromFirestore() {
         for (const doc of draftSnapshot.docs) {
             const data = doc.data();
             const messageId = Number(doc.id);
-            pendingDrafts.set(messageId, {
+            const draft = {
                 text: data.text,
                 category: data.category,
                 type: data.type,
@@ -168,7 +172,14 @@ export async function restoreStateFromFirestore() {
                 imageUrl: data.imageUrl || null,
                 artist: data.artist || null,
                 imageDirection: data.imageDirection || null,
-            });
+            };
+            // 예약 초안 필드 복구
+            if (data.slotKey) {
+                draft.slotKey = data.slotKey;
+                draft.scheduledHour = data.scheduledHour;
+                draft.dateLabel = data.dateLabel || null;
+            }
+            pendingDrafts.set(messageId, draft);
         }
 
         // 대기 중인 카드뉴스 복구

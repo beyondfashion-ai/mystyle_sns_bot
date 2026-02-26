@@ -47,9 +47,10 @@ export function registerCommands(bot, adminChatId) {
             nextInfo.length > 0 ? `⏰ 다음 예정: ${nextInfo[0]}` : '',
             '',
             '📋 *운영 흐름:*',
-            '  9:00 — 하루 초안 일괄 생성 → 검수 요청',
-            '  승인 → 예약 시간에 자동 게시',
+            '  9:00 — D+2 초안 일괄 생성 → 검수 요청',
+            '  승인 → 이틀 후 예약 시간에 자동 게시',
             '  거부 → 새 초안 자동 재생성',
+            '  🚨 /urgent — 긴급 뉴스 즉시 생성→게시',
         ].filter(Boolean).join('\n');
 
         bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown', reply_markup: MAIN_MENU_KEYBOARD });
@@ -324,6 +325,55 @@ export function registerCommands(bot, adminChatId) {
     }
     bot.onText(/\/report/, handleReport);
 
+    // /urgent <주제> - 긴급 뉴스 초안 생성
+    async function handleUrgent(msg, match) {
+        if (!isAdmin(msg.chat.id)) return;
+
+        const requestText = match ? match[1]?.trim() : null;
+
+        if (!requestText) {
+            await bot.sendMessage(msg.chat.id,
+                '🚨 *긴급 뉴스 초안 생성*\n\n' +
+                '주제를 함께 입력해주세요.\n\n' +
+                '예시:\n' +
+                '`/urgent 뉴진스 컴백 발표 Y2K 룩`\n' +
+                '`/urgent 에스파 공항 패션 바이럴`\n' +
+                '`/urgent 르세라핌 MV 의상 화제`',
+                { parse_mode: 'Markdown' });
+            return;
+        }
+
+        await bot.sendMessage(msg.chat.id,
+            `🚨 *긴급 초안 생성 중...*\n주제: ${requestText}\nGemini→Claude 파이프라인 실행 중`);
+
+        // 긴급 뉴스는 style_editorial 포맷 + 주제 주입
+        let draft = await generateSNSContent({
+            platform: 'x',
+            formatKey: 'style_editorial',
+            topic: requestText,
+        });
+
+        if (!draft) {
+            await bot.sendMessage(msg.chat.id, '❌ 긴급 초안 생성에 실패했습니다. 다시 시도해주세요.');
+            return;
+        }
+
+        draft.platform = 'x';
+
+        // 이미지 생성 시도
+        try {
+            await bot.sendMessage(msg.chat.id, '🎨 이미지 생성 중...');
+            draft.imageUrl = await generateImageForDraft(draft);
+        } catch (err) {
+            console.error('[Telegram] 긴급 뉴스 이미지 생성 실패:', err.message);
+            await bot.sendMessage(msg.chat.id, `⚠️ 이미지 생성 실패 (텍스트만 초안): ${err.message}`);
+            draft.imageUrl = null;
+        }
+
+        await sendDraftPreview(bot, msg.chat.id, draft, '🚨 긴급 ');
+    }
+    bot.onText(/\/urgent(?:\s+(.+))?/s, handleUrgent);
+
     // /help - 전체 명령어 안내
     bot.onText(/\/help/, (msg) => {
         if (!isAdmin(msg.chat.id)) return;
@@ -335,6 +385,7 @@ export function registerCommands(bot, adminChatId) {
             '  /dx — X(Twitter) 초안 생성 (Hybrid LLM)',
             '  /di — Instagram 화보 생성 (이미지 포함)',
             '  /cn — 카드뉴스 스튜디오',
+            '  /urgent <주제> — 🚨 긴급 뉴스 즉시 생성',
             '  /post <텍스트> — X 직접 작성',
             '',
             '*AI & 기획:*',
@@ -358,11 +409,12 @@ export function registerCommands(bot, adminChatId) {
             '  /help — 이 도움말',
             '',
             '*자동 운영 흐름:*',
-            '  매일 9:00 → 하루 초안 일괄 생성 → 검수',
-            '  승인 → 예약 시간에 자동 게시',
+            '  매일 9:00 → D+2(이틀 후) 초안 일괄 생성 → 검수',
+            '  승인 → 해당 날짜 예약 시간에 자동 게시',
             '  거부 → 새 초안 자동 재생성',
             '',
             '💡 수동 초안(/dx, /di)은 승인 즉시 게시됩니다.',
+            '🚨 /urgent는 긴급 뉴스를 즉시 생성하여 바로 게시합니다.',
             '🔗 수동 초안에 이미지가 있으면 X+IG 동시 게시도 가능합니다.',
         ].join('\n');
 
@@ -432,5 +484,6 @@ export function registerCommands(bot, adminChatId) {
         handleSchedule,
         handleScheduler,
         handleHistory,
+        handleUrgent,
     };
 }

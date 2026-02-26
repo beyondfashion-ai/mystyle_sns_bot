@@ -50,6 +50,7 @@ export function createTelegramBot() {
         { command: '/dx', description: 'X 초안 (Hybrid LLM)' },
         { command: '/di', description: 'IG 화보 (Hybrid LLM)' },
         { command: '/cn', description: '카드뉴스 스튜디오' },
+        { command: '/urgent', description: '긴급 뉴스 즉시 생성' },
         { command: '/askai', description: 'AI 기획 회의' },
         { command: '/status', description: 'API 호출 현황' },
         { command: '/report', description: '주간 성과 리포트' },

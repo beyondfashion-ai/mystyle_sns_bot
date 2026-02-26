@@ -6,11 +6,32 @@ import { getRandomFormatDraft } from '../formatManager.js';
 import { getEditorialDirectionPrompt } from '../editorialEvolution.js';
 import { generateSNSContent } from '../contentGenerator.js';
 import { postToSNS } from '../bot.js';
-import { getTodaySchedule, getFormatName } from '../contentCalendar.js';
+import { getTodaySchedule, getFormatName, getDayName } from '../contentCalendar.js';
 
 import { pendingDrafts } from './state.js';
 import { makeScheduledDraftKeyboard, formatDraftPreview } from './keyboards.js';
-import { getApprovedDraft, removeFromQueue, clearDailyQueue } from './draftQueue.js';
+import { getApprovedDraft, removeFromQueue, clearQueueForDate } from './draftQueue.js';
+
+// ===== KST 날짜 헬퍼 =====
+
+function toKST(date) {
+    return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+}
+
+export function getKSTDateStr(date) {
+    return toKST(date).toISOString().slice(0, 10);
+}
+
+/**
+ * "2/28(수)" 형태의 짧은 날짜 라벨 생성
+ */
+function makeDateLabel(date) {
+    const kst = toKST(date);
+    const m = kst.getMonth() + 1;
+    const d = kst.getDate();
+    const dayName = getDayName(kst.getDay());
+    return `${m}/${d}(${dayName})`;
+}
 
 // ===== 단일 슬롯 초안 생성 (내부 + regenerateForSlot에서 재사용) =====
 
@@ -18,12 +39,13 @@ import { getApprovedDraft, removeFromQueue, clearDailyQueue } from './draftQueue
  * 특정 슬롯의 초안을 생성하고 텔레그램 미리보기를 전송한다.
  * @param {object} bot
  * @param {string} chatId
- * @param {string} slotKey - 예: "x_10", "ig_12"
+ * @param {string} slotKey - 예: "2026-02-28_x_10"
  * @param {string} platform - "x" | "instagram"
  * @param {string} formatKey - 콘텐츠 캘린더 포맷 키
  * @param {number} scheduledHour - 예약 게시 시간 (KST)
+ * @param {string} [dateLabel] - 미리보기 날짜 라벨 (예: "2/28(수)")
  */
-async function generateAndSendSlotDraft(bot, chatId, slotKey, platform, formatKey, scheduledHour) {
+async function generateAndSendSlotDraft(bot, chatId, slotKey, platform, formatKey, scheduledHour, dateLabel) {
     const formatName = getFormatName(formatKey);
 
     // 1. 콘텐츠 생성 (Hybrid LLM)
@@ -69,11 +91,13 @@ async function generateAndSendSlotDraft(bot, chatId, slotKey, platform, formatKe
     // 3. 예약 정보 태그
     draft.slotKey = slotKey;
     draft.scheduledHour = scheduledHour;
+    if (dateLabel) draft.dateLabel = dateLabel;
 
     // 4. 텔레그램 미리보기 전송
     const platformLabel = platform === 'instagram' ? 'IG' : 'X';
-    const keyboard = makeScheduledDraftKeyboard(scheduledHour, platform);
-    const preview = formatDraftPreview(draft, `⏰${scheduledHour}:00 ${platformLabel} `);
+    const datePart = dateLabel ? `📅${dateLabel} ` : '';
+    const keyboard = makeScheduledDraftKeyboard(scheduledHour, platform, dateLabel);
+    const preview = formatDraftPreview(draft, `${datePart}⏰${scheduledHour}:00 ${platformLabel} `);
 
     let sent;
     if (draft.imageUrl) {
@@ -95,30 +119,37 @@ async function generateAndSendSlotDraft(bot, chatId, slotKey, platform, formatKe
 // ===== 공개 함수 =====
 
 /**
- * 9AM에 오늘의 초안을 일괄 생성하여 관리자에게 검수 요청한다.
+ * 9AM에 D+2(이틀 후)의 초안을 일괄 생성하여 관리자에게 검수 요청한다.
+ * 2일 전에 미리 생성하여 여유롭게 검수할 수 있도록 함.
  */
 export async function generateDailyDrafts(bot) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     if (!bot || !adminChatId) return;
 
-    // 전날 잔여 큐 초기화
-    clearDailyQueue();
+    // D+2 목표 날짜 계산
+    const targetDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const dateStr = getKSTDateStr(targetDate);
+    const dateLabel = makeDateLabel(targetDate);
 
-    const schedule = getTodaySchedule();
+    // 해당 날짜의 기존 큐만 초기화
+    clearQueueForDate(dateStr);
+
+    const schedule = getTodaySchedule(targetDate);
     const totalSlots = schedule.x.length + schedule.ig.length;
 
     await bot.sendMessage(adminChatId,
-        `🌅 *오늘의 컨텐츠 초안 생성을 시작합니다* (${totalSlots}건)\n\n` +
-        `검수 후 승인하면 예약 시간에 자동 게시됩니다.\n거부하면 새 초안이 자동 생성됩니다.`,
+        `🌅 *${dateLabel} 컨텐츠 초안 생성을 시작합니다* (${totalSlots}건)\n\n` +
+        `📅 D-2 사전 생성: 이틀 후 게시될 초안입니다.\n` +
+        `검수 후 승인하면 ${dateLabel}에 자동 게시됩니다.\n거부하면 새 초안이 자동 생성됩니다.`,
         { parse_mode: 'Markdown' });
 
     let successCount = 0;
 
     // X 초안 생성
     for (const slot of schedule.x) {
-        const slotKey = `x_${slot.hour}`;
+        const slotKey = `${dateStr}_x_${slot.hour}`;
         try {
-            await generateAndSendSlotDraft(bot, adminChatId, slotKey, 'x', slot.format, slot.hour);
+            await generateAndSendSlotDraft(bot, adminChatId, slotKey, 'x', slot.format, slot.hour, dateLabel);
             successCount++;
         } catch (err) {
             console.error(`[Scheduled] ${slotKey} 생성 실패:`, err.message);
@@ -128,9 +159,9 @@ export async function generateDailyDrafts(bot) {
 
     // IG 초안 생성
     for (const slot of schedule.ig) {
-        const slotKey = `ig_${slot.hour}`;
+        const slotKey = `${dateStr}_ig_${slot.hour}`;
         try {
-            await generateAndSendSlotDraft(bot, adminChatId, slotKey, 'instagram', slot.format, slot.hour);
+            await generateAndSendSlotDraft(bot, adminChatId, slotKey, 'instagram', slot.format, slot.hour, dateLabel);
             successCount++;
         } catch (err) {
             console.error(`[Scheduled] ${slotKey} 생성 실패:`, err.message);
@@ -139,12 +170,12 @@ export async function generateDailyDrafts(bot) {
     }
 
     await bot.sendMessage(adminChatId,
-        `✅ 초안 생성 완료 (${successCount}/${totalSlots}건)\n위 초안들을 검수해주세요!`);
+        `✅ ${dateLabel} 초안 생성 완료 (${successCount}/${totalSlots}건)\n위 초안들을 검수해주세요!`);
 }
 
 /**
  * 예약 시간에 승인된 초안을 게시한다.
- * @param {string} slotKey - 예: "x_10", "ig_12"
+ * @param {string} slotKey - 예: "2026-02-28_x_10" 또는 레거시 "x_10"
  */
 export async function postScheduledSlot(bot, slotKey) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
@@ -152,7 +183,10 @@ export async function postScheduledSlot(bot, slotKey) {
 
     const entry = getApprovedDraft(slotKey);
     if (!entry) {
-        const [platform, hour] = slotKey.split('_');
+        // slotKey에서 platform/hour 파싱 ("YYYY-MM-DD_x_10" 또는 "x_10")
+        const parts = slotKey.split('_');
+        const hour = parts[parts.length - 1];
+        const platform = parts[parts.length - 2];
         const platformLabel = platform === 'ig' ? 'IG' : 'X';
         await bot.sendMessage(adminChatId,
             `⚠️ *${hour}:00 ${platformLabel}* 게시물이 아직 미승인입니다.\n텔레그램에서 해당 초안을 검수해주세요.`,

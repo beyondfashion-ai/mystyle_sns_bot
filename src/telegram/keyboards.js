@@ -101,6 +101,9 @@ export const MAIN_MENU_KEYBOARD = {
             { text: '📰 카드뉴스 제작', callback_data: 'menu_cn' },
             { text: '🤖 AI 기획 회의', callback_data: 'menu_askai' },
         ],
+        [
+            { text: '🚨 긴급 뉴스', callback_data: 'menu_urgent' },
+        ],
         // ── 자동 관리 ──
         [{ text: '── 🤖 자동 관리 ──', callback_data: 'section_auto' }],
         [
@@ -124,12 +127,16 @@ export const MAIN_MENU_KEYBOARD = {
 
 /**
  * 예약 초안용 인라인 키보드 (승인 시 예약 게시)
+ * @param {number} scheduledHour
+ * @param {string} platform
+ * @param {string} [dateLabel] - "2/28(수)" 형태
  */
-export function makeScheduledDraftKeyboard(scheduledHour, platform) {
+export function makeScheduledDraftKeyboard(scheduledHour, platform, dateLabel) {
     const platformLabel = platform === 'instagram' ? 'IG' : 'X';
+    const datePart = dateLabel ? `${dateLabel} ` : '';
     return {
         inline_keyboard: [
-            [{ text: `✅ 승인 (${scheduledHour}:00 ${platformLabel} 게시)`, callback_data: 'approve_scheduled' }],
+            [{ text: `✅ 승인 (${datePart}${scheduledHour}:00 ${platformLabel} 게시)`, callback_data: 'approve_scheduled' }],
             [
                 { text: '✏️ 수정', callback_data: 'edit' },
                 { text: '💬 AI 수정', callback_data: 'ai_refine' },
@@ -145,7 +152,7 @@ export function makeScheduledDraftKeyboard(scheduledHour, platform) {
 export function getDraftKeyboard(draft) {
     // 예약 초안은 전용 키보드 사용
     if (draft.slotKey) {
-        return makeScheduledDraftKeyboard(draft.scheduledHour, draft.platform);
+        return makeScheduledDraftKeyboard(draft.scheduledHour, draft.platform, draft.dateLabel);
     }
     if (draft.imageUrl) {
         return CROSS_POST_KEYBOARD;
