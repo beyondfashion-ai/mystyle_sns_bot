@@ -57,6 +57,7 @@ export function createTelegramBot() {
         { command: '/listformat', description: 'DB 포맷 목록' },
         { command: '/schedule', description: '오늘 콘텐츠 편성표' },
         { command: '/scheduler', description: '스케줄러 관리 (일시정지/재개)' },
+        { command: '/dashboard', description: '검수 현황 대시보드' },
         { command: '/history', description: '최근 초안 이력' },
         { command: '/help', description: '전체 명령어 가이드' },
     ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));

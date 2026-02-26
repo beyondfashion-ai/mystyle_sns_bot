@@ -8,7 +8,7 @@ import { generateSNSContent } from '../contentGenerator.js';
 import { postToSNS } from '../bot.js';
 import { getTodaySchedule, getFormatName, getDayName } from '../contentCalendar.js';
 
-import { pendingDrafts } from './state.js';
+import { pendingDrafts, updateDraftStatus } from './state.js';
 import { makeScheduledDraftKeyboard, formatDraftPreview } from './keyboards.js';
 import { getApprovedDraft, removeFromQueue, clearQueueForDate } from './draftQueue.js';
 
@@ -25,7 +25,7 @@ export function getKSTDateStr(date) {
 /**
  * "2/28(수)" 형태의 짧은 날짜 라벨 생성
  */
-function makeDateLabel(date) {
+export function makeDateLabel(date) {
     const kst = toKST(date);
     const m = kst.getMonth() + 1;
     const d = kst.getDate();
@@ -173,28 +173,114 @@ export async function generateDailyDrafts(bot) {
         `✅ ${dateLabel} 초안 생성 완료 (${successCount}/${totalSlots}건)\n위 초안들을 검수해주세요!`);
 }
 
+// ===== 슬롯 상태 조회 =====
+
 /**
- * 예약 시간에 승인된 초안을 게시한다.
- * @param {string} slotKey - 예: "2026-02-28_x_10" 또는 레거시 "x_10"
+ * pendingDrafts에서 slotKey로 미승인 초안을 찾는다.
  */
-export async function postScheduledSlot(bot, slotKey) {
+export function findPendingDraftBySlotKey(slotKey) {
+    for (const [messageId, draft] of pendingDrafts) {
+        if (draft.slotKey === slotKey) {
+            return { messageId, draft };
+        }
+    }
+    return null;
+}
+
+/**
+ * 특정 슬롯의 상태를 반환한다.
+ * @returns {'approved' | 'pending' | 'missing'}
+ */
+export function getSlotStatus(slotKey) {
+    if (getApprovedDraft(slotKey)) return 'approved';
+    if (findPendingDraftBySlotKey(slotKey)) return 'pending';
+    return 'missing';
+}
+
+/**
+ * 특정 날짜의 전체 슬롯 검수 현황을 반환한다.
+ */
+export function getDayReviewStatus(dateStr, schedule) {
+    const statuses = [];
+    for (const slot of schedule.x) {
+        const slotKey = `${dateStr}_x_${slot.hour}`;
+        statuses.push({
+            platform: 'X', hour: slot.hour,
+            format: slot.format, status: getSlotStatus(slotKey),
+        });
+    }
+    for (const slot of schedule.ig) {
+        const slotKey = `${dateStr}_ig_${slot.hour}`;
+        statuses.push({
+            platform: 'IG', hour: slot.hour,
+            format: slot.format, status: getSlotStatus(slotKey),
+        });
+    }
+    return statuses;
+}
+
+// ===== 리마인더 =====
+
+/**
+ * 30분 전 미승인 슬롯 리마인더 (이미 승인된 경우 무시)
+ */
+export async function remindUnapprovedSlot(bot, slotKey) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     if (!bot || !adminChatId) return;
 
-    const entry = getApprovedDraft(slotKey);
-    if (!entry) {
-        // slotKey에서 platform/hour 파싱 ("YYYY-MM-DD_x_10" 또는 "x_10")
-        const parts = slotKey.split('_');
-        const hour = parts[parts.length - 1];
-        const platform = parts[parts.length - 2];
-        const platformLabel = platform === 'ig' ? 'IG' : 'X';
-        await bot.sendMessage(adminChatId,
-            `⚠️ *${hour}:00 ${platformLabel}* 게시물이 아직 미승인입니다.\n텔레그램에서 해당 초안을 검수해주세요.`,
-            { parse_mode: 'Markdown' });
-        return;
+    if (getApprovedDraft(slotKey)) return; // 이미 승인됨
+
+    const parts = slotKey.split('_');
+    const hour = parts[parts.length - 1];
+    const platform = parts[parts.length - 2];
+    const platformLabel = platform === 'ig' ? 'IG' : 'X';
+
+    await bot.sendMessage(adminChatId,
+        `⏰ *${hour}:00 ${platformLabel}* 게시 30분 전!\n` +
+        `아직 미승인 상태입니다. 승인하지 않으면 *자동 게시*됩니다.`,
+        { parse_mode: 'Markdown' });
+}
+
+/**
+ * D-1 저녁: 내일 미승인 슬롯 일괄 리마인더
+ */
+export async function remindTomorrowUnapproved(bot) {
+    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    if (!bot || !adminChatId) return;
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const dateStr = getKSTDateStr(tomorrow);
+    const dateLabel = makeDateLabel(tomorrow);
+    const schedule = getTodaySchedule(tomorrow);
+
+    const unapproved = [];
+    for (const slot of schedule.x) {
+        if (!getApprovedDraft(`${dateStr}_x_${slot.hour}`)) {
+            unapproved.push(`X ${slot.hour}:00 — ${getFormatName(slot.format)}`);
+        }
+    }
+    for (const slot of schedule.ig) {
+        if (!getApprovedDraft(`${dateStr}_ig_${slot.hour}`)) {
+            unapproved.push(`IG ${slot.hour}:00 — ${getFormatName(slot.format)}`);
+        }
     }
 
-    const { draft } = entry;
+    if (unapproved.length === 0) return;
+
+    await bot.sendMessage(adminChatId,
+        `🔔 *내일(${dateLabel}) 미승인 초안 ${unapproved.length}건*\n\n` +
+        unapproved.map(s => `  ⚠️ ${s}`).join('\n') +
+        `\n\n미승인 시 게시 시간에 자동 게시됩니다.`,
+        { parse_mode: 'Markdown' });
+}
+
+// ===== 예약 게시 (미승인 시 자동 게시) =====
+
+/**
+ * 초안을 SNS에 게시하고 결과를 알린다 (공통 로직).
+ * @returns {boolean} 성공 여부
+ */
+async function executePost(bot, adminChatId, draft, slotKey, label) {
     const apiPlatform = draft.platform === 'instagram' ? 'instagram' : 'x';
     const platformLabel = draft.platform === 'instagram' ? 'IG' : 'X';
 
@@ -212,17 +298,60 @@ export async function postScheduledSlot(bot, slotKey) {
                 ? `\n🔗 https://x.com/i/status/${platformResult.id}`
                 : ` (ID: ${platformResult.id})`;
             await bot.sendMessage(adminChatId,
-                `⚡ *예약 게시 완료* [${platformLabel} ${draft.scheduledHour}:00]${link}`,
+                `${label} [${platformLabel} ${draft.scheduledHour}:00]${link}`,
                 { parse_mode: 'Markdown' });
+            return true;
         } else {
             const error = platformResult?.error || '알 수 없는 오류';
-            await bot.sendMessage(adminChatId, `❌ 예약 게시 실패 [${platformLabel} ${draft.scheduledHour}:00]: ${error}`);
+            await bot.sendMessage(adminChatId, `❌ 게시 실패 [${platformLabel} ${draft.scheduledHour}:00]: ${error}`);
+            return false;
         }
     } catch (err) {
-        await bot.sendMessage(adminChatId, `❌ 예약 게시 중 오류 [${slotKey}]: ${err.message}`);
+        await bot.sendMessage(adminChatId, `❌ 게시 중 오류 [${slotKey}]: ${err.message}`);
+        return false;
+    }
+}
+
+/**
+ * 예약 시간에 초안을 게시한다.
+ * 승인된 초안이 없으면 미승인 초안을 자동 게시한다.
+ * @param {string} slotKey - 예: "2026-02-28_x_10"
+ */
+export async function postScheduledSlot(bot, slotKey) {
+    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    if (!bot || !adminChatId) return;
+
+    // 1. 승인된 초안이 있으면 정상 게시
+    const entry = getApprovedDraft(slotKey);
+    if (entry) {
+        await executePost(bot, adminChatId, entry.draft, slotKey, '⚡ *예약 게시 완료*');
+        removeFromQueue(slotKey);
+        return;
     }
 
-    removeFromQueue(slotKey);
+    // 2. 미승인 초안이 있으면 자동 게시
+    const pending = findPendingDraftBySlotKey(slotKey);
+    if (pending) {
+        const { messageId, draft } = pending;
+        const platformLabel = draft.platform === 'instagram' ? 'IG' : 'X';
+
+        await bot.sendMessage(adminChatId,
+            `🤖 *${draft.scheduledHour}:00 ${platformLabel}* 미승인 → 자동 게시 중...`,
+            { parse_mode: 'Markdown' });
+
+        const success = await executePost(bot, adminChatId, draft, slotKey, '🤖 *자동 게시 완료*');
+        await updateDraftStatus(messageId, success ? 'auto_posted' : 'auto_post_failed');
+        return;
+    }
+
+    // 3. 초안 자체가 없음
+    const parts = slotKey.split('_');
+    const hour = parts[parts.length - 1];
+    const platform = parts[parts.length - 2];
+    const platformLabel = platform === 'ig' ? 'IG' : 'X';
+    await bot.sendMessage(adminChatId,
+        `⚠️ *${hour}:00 ${platformLabel}* 게시할 초안이 없습니다.`,
+        { parse_mode: 'Markdown' });
 }
 
 /**

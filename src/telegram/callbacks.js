@@ -56,6 +56,7 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
                 case 'menu_schedule': await commandHandlers.handleSchedule({ chat: { id: chatId } }); break;
                 case 'menu_scheduler': await commandHandlers.handleScheduler({ chat: { id: chatId } }); break;
                 case 'menu_history': await commandHandlers.handleHistory({ chat: { id: chatId } }); break;
+                case 'menu_dashboard': await commandHandlers.handleDashboard({ chat: { id: chatId } }); break;
             }
             return;
         }
@@ -254,8 +255,9 @@ async function handleApproveScheduled(bot, query, chatId, messageId, draft) {
         slotKey: draft.slotKey,
     });
 
+    const dateInfo = draft.dateLabel ? ` (${draft.dateLabel})` : '';
     await bot.sendMessage(chatId,
-        `✅ *${draft.scheduledHour}:00 ${platformLabel} 게시 예약 완료*\n\n예약 시간에 자동으로 게시됩니다.`,
+        `✅ *${draft.dateLabel || ''}${draft.dateLabel ? ' ' : ''}${draft.scheduledHour}:00 ${platformLabel} 게시 예약 완료*\n\n예약 시간에 자동으로 게시됩니다.`,
         { parse_mode: 'Markdown' });
 }
 

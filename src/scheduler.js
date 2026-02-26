@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { generateDailyDrafts, postScheduledSlot, getKSTDateStr } from './telegram/scheduled.js';
+import { generateDailyDrafts, postScheduledSlot, getKSTDateStr, remindUnapprovedSlot, remindTomorrowUnapproved } from './telegram/scheduled.js';
 import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
 import { runDailyEditorial, runWeeklyEditorial, runMonthlyEditorial, runQuarterlyEditorial } from './editorialEvolution.js';
@@ -110,6 +110,35 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
+    // --- D-1 21:00 KST: 내일 미승인 일괄 리마인더 ---
+    cron.schedule('0 21 * * *', async () => {
+        try {
+            await remindTomorrowUnapproved(bot);
+        } catch (err) {
+            console.error('[Scheduler] D-1 리마인더 실패:', err.message);
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    // --- 30분 전 미승인 리마인더 (게시 시간별) ---
+    const reminderSlots = [
+        { cronExpr: '30 9 * * *', platform: 'x', hour: 10 },
+        { cronExpr: '30 11 * * *', platform: 'ig', hour: 12 },
+        { cronExpr: '30 14 * * *', platform: 'x', hour: 15 },
+        { cronExpr: '30 17 * * *', platform: 'ig', hour: 18 },
+        { cronExpr: '30 19 * * *', platform: 'x', hour: 20 },
+    ];
+    for (const { cronExpr, platform, hour } of reminderSlots) {
+        cron.schedule(cronExpr, async () => {
+            if (isSchedulerPaused()) return;
+            const today = getKSTDateStr(new Date());
+            try {
+                await remindUnapprovedSlot(bot, `${today}_${platform}_${hour}`);
+            } catch (err) {
+                console.error(`[Scheduler] ${hour}:00 리마인더 실패:`, err.message);
+            }
+        }, { timezone: 'Asia/Seoul' });
+    }
+
     // --- 매일 자정에 통계 업데이트 및 외부 트렌드 수집 + 내부 트렌드 가중치 분석 + 리포트 전송 (KST) ---
     cron.schedule('0 0 * * *', async () => {
         const jobName = 'analytics_00:00';
@@ -179,5 +208,5 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    console.log('[Scheduler] 스케줄러 시작 (D+2 초안생성: 09:00 / X 게시: 10:00, 15:00, 20:00 / IG 게시: 12:00, 18:00 / 분석: 00:00 / 에디토리얼: 01-04:00 KST)');
+    console.log('[Scheduler] 스케줄러 시작 (D+2 초안생성: 09:00 / 리마인더: 30분전 / D-1 알림: 21:00 / X 게시: 10:00, 15:00, 20:00 / IG 게시: 12:00, 18:00 / 분석: 00:00 / 에디토리얼: 01-04:00 KST)');
 }

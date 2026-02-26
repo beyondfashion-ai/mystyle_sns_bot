@@ -15,6 +15,7 @@ import { db } from '../firebase.js';
 import { MAIN_MENU_KEYBOARD, CN_TYPE_KEYBOARD } from './keyboards.js';
 import { createIsAdmin, sendDraftPreview } from './helpers.js';
 import { isSchedulerPaused, pauseScheduler, resumeScheduler } from './schedulerControl.js';
+import { getKSTDateStr, makeDateLabel, getDayReviewStatus } from './scheduled.js';
 
 /**
  * 모든 명령어 핸들러를 등록한다.
@@ -283,29 +284,30 @@ export function registerCommands(bot, adminChatId) {
     }
     bot.onText(/\/askai(?:\s+(.+))?/s, handleAskAi);
 
-    // /schedule - 오늘 편성표 보기
+    // /schedule - 오늘+내일+모레 편성표 보기
     async function handleSchedule(msg) {
         if (!isAdmin(msg.chat.id)) return;
-        const schedule = getTodaySchedule();
         const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-        const dayName = getDayName(kstNow.getDay());
         const currentHour = kstNow.getHours();
 
-        const lines = [
-            `📅 *오늘 (${dayName}요일) 콘텐츠 편성표*`,
-            '',
-            '*X (Twitter):*',
-            ...schedule.x.map(s => {
-                const marker = s.hour <= currentHour ? '✅' : '⏳';
-                return `  ${marker} ${s.hour}:00 — ${getFormatName(s.format)}`;
-            }),
-            '',
-            '*Instagram:*',
-            ...schedule.ig.map(s => {
-                const marker = s.hour <= currentHour ? '✅' : '⏳';
-                return `  ${marker} ${s.hour}:00 — ${getFormatName(s.format)}`;
-            }),
-        ];
+        const lines = [];
+        for (let offset = 0; offset <= 2; offset++) {
+            const targetDate = new Date(Date.now() + offset * 24 * 60 * 60 * 1000);
+            const dateLabel = makeDateLabel(targetDate);
+            const schedule = getTodaySchedule(targetDate);
+            const label = offset === 0 ? `📅 *오늘 ${dateLabel}*` : offset === 1 ? `📅 *내일 ${dateLabel}*` : `📅 *모레 ${dateLabel}*`;
+
+            lines.push(label, '');
+            for (const s of schedule.x) {
+                const marker = offset === 0 && s.hour <= currentHour ? '✅' : '⏳';
+                lines.push(`  ${marker} X ${s.hour}:00 — ${getFormatName(s.format)}`);
+            }
+            for (const s of schedule.ig) {
+                const marker = offset === 0 && s.hour <= currentHour ? '✅' : '⏳';
+                lines.push(`  ${marker} IG ${s.hour}:00 — ${getFormatName(s.format)}`);
+            }
+            if (offset < 2) lines.push('');
+        }
         bot.sendMessage(msg.chat.id, lines.join('\n'), { parse_mode: 'Markdown' });
     }
     bot.onText(/\/schedule/, handleSchedule);
@@ -374,6 +376,37 @@ export function registerCommands(bot, adminChatId) {
     }
     bot.onText(/\/urgent(?:\s+(.+))?/s, handleUrgent);
 
+    // /dashboard - 검수 현황 대시보드
+    async function handleDashboard(msg) {
+        if (!isAdmin(msg.chat.id)) return;
+
+        const STATUS_ICON = { approved: '✅', pending: '⏳', missing: '❌' };
+        const STATUS_TEXT = { approved: '승인', pending: '검수대기', missing: '미생성' };
+        const lines = ['📋 *검수 현황 대시보드*', ''];
+
+        for (let offset = 0; offset <= 2; offset++) {
+            const targetDate = new Date(Date.now() + offset * 24 * 60 * 60 * 1000);
+            const dateStr = getKSTDateStr(targetDate);
+            const dateLabel = makeDateLabel(targetDate);
+            const schedule = getTodaySchedule(targetDate);
+            const statuses = getDayReviewStatus(dateStr, schedule);
+
+            const approvedCount = statuses.filter(s => s.status === 'approved').length;
+            const label = offset === 0 ? '오늘' : offset === 1 ? '내일' : '모레';
+
+            lines.push(`*${label} ${dateLabel}* (${approvedCount}/${statuses.length} 승인)`);
+            for (const s of statuses) {
+                const icon = STATUS_ICON[s.status];
+                lines.push(`  ${icon} ${s.platform} ${s.hour}:00 ${getFormatName(s.format)} — ${STATUS_TEXT[s.status]}`);
+            }
+            if (offset < 2) lines.push('');
+        }
+
+        lines.push('', '💡 미승인 초안은 게시 시간에 자동 게시됩니다.');
+        bot.sendMessage(msg.chat.id, lines.join('\n'), { parse_mode: 'Markdown' });
+    }
+    bot.onText(/\/dashboard/, handleDashboard);
+
     // /help - 전체 명령어 안내
     bot.onText(/\/help/, (msg) => {
         if (!isAdmin(msg.chat.id)) return;
@@ -400,7 +433,8 @@ export function registerCommands(bot, adminChatId) {
             '*모니터링:*',
             '  /status — API 호출 현황 (rate limit)',
             '  /report — 주간 성과 리포트',
-            '  /schedule — 오늘 콘텐츠 편성표',
+            '  /schedule — 편성표 (오늘~모레)',
+            '  /dashboard — 검수 현황 대시보드',
             '  /scheduler — 스케줄러 관리 (일시정지/재개)',
             '  /history — 최근 초안 이력',
             '',
@@ -485,5 +519,6 @@ export function registerCommands(bot, adminChatId) {
         handleScheduler,
         handleHistory,
         handleUrgent,
+        handleDashboard,
     };
 }

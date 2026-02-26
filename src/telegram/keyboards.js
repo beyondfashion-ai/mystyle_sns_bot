@@ -112,6 +112,7 @@ export const MAIN_MENU_KEYBOARD = {
         ],
         [
             { text: '📜 초안 이력', callback_data: 'menu_history' },
+            { text: '📋 검수 현황', callback_data: 'menu_dashboard' },
         ],
         // ── 시스템 ──
         [{ text: '── 📊 시스템 ──', callback_data: 'section_system' }],
