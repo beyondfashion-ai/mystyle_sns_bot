@@ -3,10 +3,12 @@ import { getRandomDraft } from '../templates.js';
 import { generateImageForDraft } from '../imageGen.js';
 import { getRandomFormatDraft } from '../formatManager.js';
 import { getFormatName, getTodaySchedule, getDayName } from '../contentCalendar.js';
+import { db } from '../firebase.js';
 
 import { pendingDrafts, editMode, updateDraftStatus } from './state.js';
 import { clearButtons, sendDraftPreview, createIsAdmin } from './helpers.js';
 import { handleCardNewsTypeSelect, handleCardNewsCallback } from './cardnews.js';
+import { isSchedulerPaused, pauseScheduler, resumeScheduler } from './schedulerControl.js';
 
 /**
  * 콜백 쿼리 핸들러 + 수정 모드 핸들러를 등록한다.
@@ -39,6 +41,8 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
                     break;
                 }
                 case 'menu_schedule': await commandHandlers.handleSchedule({ chat: { id: chatId } }); break;
+                case 'menu_scheduler': await commandHandlers.handleScheduler({ chat: { id: chatId } }); break;
+                case 'menu_history': await commandHandlers.handleHistory({ chat: { id: chatId } }); break;
             }
             return;
         }
@@ -52,6 +56,18 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
         // 카드뉴스 승인/거부
         if (action.startsWith('approve_cn_') || action === 'regenerate_cn') {
             await handleCardNewsCallback(bot, query, chatId, messageId, action);
+            return;
+        }
+
+        // 스케줄러 관리 콜백
+        if (action.startsWith('scheduler_')) {
+            await handleSchedulerCallback(bot, query, chatId, action);
+            return;
+        }
+
+        // 히스토리 조회 콜백
+        if (action.startsWith('history_')) {
+            await handleHistoryCallback(bot, query, chatId, action);
             return;
         }
 
@@ -286,5 +302,88 @@ async function handleRegenerateImage(bot, query, chatId, messageId, draft) {
         await sendDraftPreview(bot, chatId, draft);
     } catch (err) {
         await bot.sendMessage(chatId, `❌ 이미지 재생성 실패: ${err.message}`);
+    }
+}
+
+// ===== 스케줄러 관리 콜백 =====
+
+async function handleSchedulerCallback(bot, query, chatId, action) {
+    switch (action) {
+        case 'scheduler_pause': {
+            await pauseScheduler();
+            await bot.answerCallbackQuery(query.id, { text: '스케줄러 일시정지' });
+            await bot.sendMessage(chatId, '⏸️ 스케줄러가 *일시정지* 되었습니다.\n자동 초안 생성이 중단됩니다. (에디토리얼 진화는 계속 실행)', { parse_mode: 'Markdown' });
+            break;
+        }
+        case 'scheduler_resume': {
+            await resumeScheduler();
+            await bot.answerCallbackQuery(query.id, { text: '스케줄러 재개' });
+            await bot.sendMessage(chatId, '▶️ 스케줄러가 *재개* 되었습니다.\n자동 초안 생성이 다시 시작됩니다.', { parse_mode: 'Markdown' });
+            break;
+        }
+        case 'scheduler_next': {
+            await bot.answerCallbackQuery(query.id);
+            const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+            const currentHour = kstNow.getHours();
+            const schedule = getTodaySchedule();
+            const dayName = getDayName(kstNow.getDay());
+
+            const nextX = schedule.x.find(s => s.hour > currentHour);
+            const nextIG = schedule.ig.find(s => s.hour > currentHour);
+            const paused = isSchedulerPaused();
+
+            const lines = [`📋 *다음 예정 작업* (${dayName}요일)`, ''];
+            if (paused) lines.push('⚠️ 스케줄러 일시정지 중 — 아래 작업은 재개 후 실행됩니다.', '');
+            if (nextX) lines.push(`X: ${nextX.hour}:00 KST — ${getFormatName(nextX.format)}`);
+            if (nextIG) lines.push(`IG: ${nextIG.hour}:00 KST — ${getFormatName(nextIG.format)}`);
+            if (!nextX && !nextIG) lines.push('오늘 남은 예정 작업이 없습니다.');
+
+            await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'Markdown' });
+            break;
+        }
+    }
+}
+
+// ===== 히스토리 조회 콜백 =====
+
+async function handleHistoryCallback(bot, query, chatId, action) {
+    await bot.answerCallbackQuery(query.id);
+
+    if (!db) {
+        await bot.sendMessage(chatId, '⚠️ Firestore 미연결. 이력 조회가 불가합니다.');
+        return;
+    }
+
+    const status = action === 'history_approved' ? 'approved' : 'rejected';
+    const label = status === 'approved' ? '승인' : '거부';
+
+    try {
+        const snapshot = await db.collection('telegram_drafts')
+            .where('status', '==', status)
+            .orderBy('updatedAt', 'desc')
+            .limit(5)
+            .get();
+
+        if (snapshot.empty) {
+            await bot.sendMessage(chatId, `📜 최근 ${label}된 초안이 없습니다.`);
+            return;
+        }
+
+        const lines = [`📜 *최근 ${label} 초안 (${snapshot.size}건)*`, ''];
+        let idx = 1;
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            const date = d.updatedAt?.toDate?.() || d.createdAt?.toDate?.() || new Date();
+            const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            const platform = d.platform === 'instagram' ? 'IG' : 'X';
+            const extra = d.approvedPlatform === 'both' ? ' (X+IG)' : '';
+            const preview = (d.text || '').replace(/\n/g, ' ').substring(0, 40);
+            lines.push(`${idx}. [${platform}${extra}] ${dateStr} — ${preview}...`);
+            idx++;
+        });
+
+        await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'Markdown' });
+    } catch (err) {
+        await bot.sendMessage(chatId, `❌ 이력 조회 실패: ${err.message}`);
     }
 }

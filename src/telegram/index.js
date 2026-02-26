@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { setupTTLCleanup, restoreStateFromFirestore } from './state.js';
 import { registerCommands } from './commands.js';
 import { registerCallbacks } from './callbacks.js';
+import { restoreSchedulerState } from './schedulerControl.js';
 
 /**
  * 텔레그램 봇을 생성하고 명령어/콜백 핸들러를 등록한다.
@@ -33,8 +34,11 @@ export function createTelegramBot() {
     // TTL 정리 + Firestore 인터셉터 설정
     setupTTLCleanup();
 
-    // Firestore에서 대기 초안 복구 (비동기, 실패해도 봇 동작에 영향 없음)
-    restoreStateFromFirestore().catch(err => {
+    // Firestore에서 대기 초안 + 스케줄러 상태 복구 (비동기, 실패해도 봇 동작에 영향 없음)
+    Promise.all([
+        restoreStateFromFirestore(),
+        restoreSchedulerState(),
+    ]).catch(err => {
         console.error('[Telegram] Firestore 상태 복구 실패:', err.message);
     });
 
@@ -49,6 +53,8 @@ export function createTelegramBot() {
         { command: '/report', description: '주간 성과 리포트' },
         { command: '/listformat', description: 'DB 포맷 목록' },
         { command: '/schedule', description: '오늘 콘텐츠 편성표' },
+        { command: '/scheduler', description: '스케줄러 관리 (일시정지/재개)' },
+        { command: '/history', description: '최근 초안 이력' },
         { command: '/help', description: '전체 명령어 가이드' },
     ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));
 

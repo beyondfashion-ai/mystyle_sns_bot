@@ -10,8 +10,11 @@ import { getEditorialDirectionPrompt } from '../editorialEvolution.js';
 import { generateSNSContent } from '../contentGenerator.js';
 import { getXFormatForNow, getIGFormatForNow, getTodaySchedule, getFormatName, getDayName } from '../contentCalendar.js';
 
+import { db } from '../firebase.js';
+
 import { MAIN_MENU_KEYBOARD, CN_TYPE_KEYBOARD } from './keyboards.js';
 import { createIsAdmin, sendDraftPreview } from './helpers.js';
+import { isSchedulerPaused, pauseScheduler, resumeScheduler } from './schedulerControl.js';
 
 /**
  * 모든 명령어 핸들러를 등록한다.
@@ -344,6 +347,8 @@ export function registerCommands(bot, adminChatId) {
             '  /status — API 호출 현황 (rate limit)',
             '  /report — 주간 성과 리포트',
             '  /schedule — 오늘 콘텐츠 편성표',
+            '  /scheduler — 스케줄러 관리 (일시정지/재개)',
+            '  /history — 최근 초안 이력',
             '',
             '*기타:*',
             '  /start — 메인 메뉴',
@@ -356,6 +361,57 @@ export function registerCommands(bot, adminChatId) {
         bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
     });
 
+    // /scheduler - 스케줄러 관리
+    const SCHEDULER_KEYBOARD = {
+        inline_keyboard: [
+            [
+                { text: '⏸️ 일시정지', callback_data: 'scheduler_pause' },
+                { text: '▶️ 재개', callback_data: 'scheduler_resume' },
+            ],
+            [
+                { text: '📋 다음 예정 작업', callback_data: 'scheduler_next' },
+            ],
+        ],
+    };
+
+    async function handleScheduler(msg) {
+        if (!isAdmin(msg.chat.id)) return;
+        const paused = isSchedulerPaused();
+        const statusEmoji = paused ? '⏸️' : '▶️';
+        const statusText = paused ? '일시정지 중' : '실행 중';
+
+        await bot.sendMessage(msg.chat.id, `${statusEmoji} *스케줄러 상태:* ${statusText}\n\n에디토리얼 진화 작업은 일시정지와 무관하게 항상 실행됩니다.`, {
+            parse_mode: 'Markdown',
+            reply_markup: SCHEDULER_KEYBOARD,
+        });
+    }
+    bot.onText(/\/scheduler/, handleScheduler);
+
+    // /history - 초안 이력 조회
+    const HISTORY_KEYBOARD = {
+        inline_keyboard: [
+            [
+                { text: '✅ 최근 승인 5건', callback_data: 'history_approved' },
+                { text: '❌ 최근 거부 5건', callback_data: 'history_rejected' },
+            ],
+        ],
+    };
+
+    async function handleHistory(msg) {
+        if (!isAdmin(msg.chat.id)) return;
+
+        if (!db) {
+            await bot.sendMessage(msg.chat.id, '⚠️ Firestore 미연결. 이력 조회가 불가합니다.');
+            return;
+        }
+
+        await bot.sendMessage(msg.chat.id, '📜 *초안 이력 조회*\n조회할 항목을 선택하세요:', {
+            parse_mode: 'Markdown',
+            reply_markup: HISTORY_KEYBOARD,
+        });
+    }
+    bot.onText(/\/history/, handleHistory);
+
     // 콜백 라우팅에 필요한 핸들러 참조 반환
     return {
         handleDx,
@@ -366,5 +422,7 @@ export function registerCommands(bot, adminChatId) {
         handleReport,
         handleAskAi,
         handleSchedule,
+        handleScheduler,
+        handleHistory,
     };
 }

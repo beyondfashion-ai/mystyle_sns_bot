@@ -229,9 +229,9 @@ pending_drafts/{messageId} = {
 | **P1** | 3-1. 메인 메뉴 개선 | UX | 핵심 기능에 대한 접근성 | ✅ 완료 |
 | **P2** | 2-2. Firestore 상태 관리 | 안정성 | 재시작 시 초안 유실 방지 | ✅ 완료 |
 | **P2** | 2-3. 크로스포스팅 | 운영 효율 | 동일 콘텐츠 멀티 플랫폼 | ✅ 완료 |
-| **P2** | 3-2. 스케줄러 관리 | 운영 편의 | 텔레그램에서 제어 |
-| **P3** | 3-3. 초안 히스토리 | 분석/참고 | Firestore 전환 후 가능 |
-| **P3** | 3-4. 에러 알림 강화 | 모니터링 | 프로덕션 안정성 |
+| **P2** | 3-2. 스케줄러 관리 | 운영 편의 | 텔레그램에서 제어 | ✅ 완료 |
+| **P3** | 3-3. 초안 히스토리 | 분석/참고 | Firestore 전환 후 가능 | ✅ 완료 |
+| **P3** | 3-4. 에러 알림 강화 | 모니터링 | 프로덕션 안정성 | ✅ 완료 |
 
 ---
 
@@ -272,3 +272,33 @@ pending_drafts/{messageId} = {
    - `handleApproveBoth()`: `postToSNS({ platforms: ['x', 'instagram'] })` 호출
 
 4. **3-1. /help 명령어 추가** — 전체 명령어 가이드
+
+### Session 3 — P2~P3 항목 (Phase 3: 운영 편의 기능)
+
+1. **3-2. 스케줄러 관리 명령어**
+   - `/scheduler` 명령어 + 메인 메뉴 "⏰ 스케줄러 관리" 버튼
+   - 일시정지/재개/다음 예정 작업 보기 인라인 키보드
+   - `src/telegram/schedulerControl.js` — Firestore `bot_settings/scheduler_state` 영속화
+   - `src/scheduler.js` 모든 SNS 초안 cron job에 `isSchedulerPaused()` 체크 적용
+   - 에디토리얼 진화 작업은 일시정지 무관하게 항상 실행
+
+2. **3-3. 초안 히스토리**
+   - `/history` 명령어 + 메인 메뉴 "📜 초안 이력" 버튼
+   - Firestore `telegram_drafts` 컬렉션에서 최근 승인/거부 5건 조회
+   - 날짜, 플랫폼, 크로스포스팅 여부, 텍스트 미리보기 표시
+
+3. **3-4. 에러 알림 강화**
+   - `src/telegram/errorNotifier.js` — 중앙 에러 알림 모듈
+   - 연속 실패 추적 (3회 이상 시 severity=critical 🚨)
+   - `resetErrorCount()` — 성공 시 연속 실패 카운트 초기화
+   - `scheduler.js` 전체 cron job 통합 (기존 `notifyError()` 대체)
+
+---
+
+## 전체 기획 완료 요약
+
+Phase 1~3 모든 항목 구현 완료. 남은 항목은 Phase 4 (향후 확장)만 해당:
+- 4-1. Threads 채널 추가
+- 4-2. Remotion 비디오 자동화
+- 4-3. X 실시간 답장 자동화
+- 4-4. UGC 캠페인 시스템

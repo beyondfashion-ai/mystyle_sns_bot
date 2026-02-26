@@ -100,6 +100,10 @@ export const MAIN_MENU_KEYBOARD = {
             { text: '📋 포맷 관리', callback_data: 'menu_listformat' },
             { text: '📅 오늘 편성표', callback_data: 'menu_schedule' },
         ],
+        [
+            { text: '⏰ 스케줄러 관리', callback_data: 'menu_scheduler' },
+            { text: '📜 초안 이력', callback_data: 'menu_history' },
+        ],
     ],
 };
 
