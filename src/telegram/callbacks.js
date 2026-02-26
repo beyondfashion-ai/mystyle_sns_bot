@@ -10,6 +10,8 @@ import { pendingDrafts, editMode, updateDraftStatus } from './state.js';
 import { clearButtons, sendDraftPreview, createIsAdmin } from './helpers.js';
 import { handleCardNewsTypeSelect, handleCardNewsCallback } from './cardnews.js';
 import { isSchedulerPaused, pauseScheduler, resumeScheduler } from './schedulerControl.js';
+import { queueApprovedDraft } from './draftQueue.js';
+import { regenerateForSlot } from './scheduled.js';
 
 /**
  * 콜백 쿼리 핸들러 + 수정 모드 핸들러를 등록한다.
@@ -48,6 +50,12 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
             return;
         }
 
+        // 섹션 구분선 버튼 (no-op)
+        if (action.startsWith('section_')) {
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+
         // 카드뉴스 타입 선택 콜백
         if (action.startsWith('cn_type_')) {
             await handleCardNewsTypeSelect(bot, query, chatId, action);
@@ -80,6 +88,10 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
         }
 
         switch (action) {
+            case 'approve_scheduled':
+                await handleApproveScheduled(bot, query, chatId, messageId, draft);
+                break;
+
             case 'approve_x':
                 await handleApproveX(bot, query, chatId, messageId, draft);
                 break;
@@ -117,10 +129,26 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
                 break;
 
             case 'reject':
-                await bot.answerCallbackQuery(query.id, { text: '초안 폐기됨' });
-                await updateDraftStatus(messageId, 'rejected');
-                await clearButtons(bot, chatId, messageId);
-                await bot.sendMessage(chatId, '🗑️ 초안이 폐기되었습니다.');
+                if (draft.slotKey) {
+                    // 예약 초안: 거부 → 자동 재생성
+                    await bot.answerCallbackQuery(query.id, { text: '새로 생성 중...' });
+                    await updateDraftStatus(messageId, 'rejected');
+                    await clearButtons(bot, chatId, messageId);
+                    const platformLabel = draft.platform === 'instagram' ? 'IG' : 'X';
+                    await bot.sendMessage(chatId, `🔄 ${draft.scheduledHour}:00 ${platformLabel} 초안을 새로 생성합니다...`);
+                    try {
+                        await regenerateForSlot(bot, chatId, draft.slotKey, draft.platform, draft.category, draft.scheduledHour);
+                    } catch (err) {
+                        console.error('[Callbacks] 예약 초안 재생성 실패:', err.message);
+                        await bot.sendMessage(chatId, `❌ 재생성 실패: ${err.message}`);
+                    }
+                } else {
+                    // 수동 초안: 그냥 폐기
+                    await bot.answerCallbackQuery(query.id, { text: '초안 폐기됨' });
+                    await updateDraftStatus(messageId, 'rejected');
+                    await clearButtons(bot, chatId, messageId);
+                    await bot.sendMessage(chatId, '🗑️ 초안이 폐기되었습니다.');
+                }
                 break;
         }
     });
@@ -143,6 +171,11 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
             return;
         }
 
+        // 예약 정보 보존용
+        const scheduleFields = originalDraft.slotKey
+            ? { slotKey: originalDraft.slotKey, scheduledHour: originalDraft.scheduledHour }
+            : {};
+
         if (mode === 'ai_refine') {
             // AI 수정 모드: Gemini Flash로 피드백 반영
             await bot.sendMessage(chatId, '🤖 AI가 피드백을 반영하여 수정 중...');
@@ -159,12 +192,15 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
                     imageUrl: originalDraft.imageUrl,
                     artist: originalDraft.artist,
                     imageDirection: originalDraft.imageDirection,
+                    ...scheduleFields,
                 };
-                await sendDraftPreview(bot, chatId, refinedDraft, 'AI 수정 ');
+                const prefix = originalDraft.slotKey
+                    ? `⏰${originalDraft.scheduledHour}:00 AI수정 `
+                    : 'AI 수정 ';
+                await sendDraftPreview(bot, chatId, refinedDraft, prefix);
             } catch (err) {
                 console.error('[Callbacks] AI 수정 실패:', err.message);
                 await bot.sendMessage(chatId, `❌ AI 수정 실패: ${err.message}\n\n원본 초안이 유지됩니다. 다시 시도하거나 직접 수정해주세요.`);
-                // 실패 시 editMode를 다시 설정하지 않음 — 원본 초안은 유지
             }
         } else {
             // 일반 수정 모드: 사용자 텍스트로 직접 교체
@@ -179,6 +215,7 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
                 imageUrl: originalDraft.imageUrl,
                 artist: originalDraft.artist,
                 imageDirection: originalDraft.imageDirection,
+                ...scheduleFields,
             };
             await sendDraftPreview(bot, chatId, editedDraft);
         }
@@ -186,6 +223,31 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
 }
 
 // ===== 콜백 핸들러 함수들 =====
+
+/**
+ * 예약 초안 승인 → 큐에 저장, 예약 시간에 자동 게시
+ */
+async function handleApproveScheduled(bot, query, chatId, messageId, draft) {
+    if (!draft.slotKey) {
+        await bot.answerCallbackQuery(query.id, { text: '⚠️ 예약 정보 없음' });
+        return;
+    }
+
+    const platformLabel = draft.platform === 'instagram' ? 'IG' : 'X';
+    await bot.answerCallbackQuery(query.id, { text: `${draft.scheduledHour}:00 게시 예약` });
+    await clearButtons(bot, chatId, messageId);
+
+    queueApprovedDraft(draft.slotKey, draft);
+    await updateDraftStatus(messageId, 'approved', {
+        approvedPlatform: draft.platform === 'instagram' ? 'instagram' : 'x',
+        scheduledHour: draft.scheduledHour,
+        slotKey: draft.slotKey,
+    });
+
+    await bot.sendMessage(chatId,
+        `✅ *${draft.scheduledHour}:00 ${platformLabel} 게시 예약 완료*\n\n예약 시간에 자동으로 게시됩니다.`,
+        { parse_mode: 'Markdown' });
+}
 
 async function handleApproveX(bot, query, chatId, messageId, draft) {
     await bot.answerCallbackQuery(query.id, { text: 'X 게시 중...' });

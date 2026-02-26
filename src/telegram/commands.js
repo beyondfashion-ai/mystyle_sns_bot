@@ -46,7 +46,10 @@ export function registerCommands(bot, adminChatId) {
             '',
             nextInfo.length > 0 ? `⏰ 다음 예정: ${nextInfo[0]}` : '',
             '',
-            '아래 버튼을 눌러 작업을 시작하세요.',
+            '📋 *운영 흐름:*',
+            '  9:00 — 하루 초안 일괄 생성 → 검수 요청',
+            '  승인 → 예약 시간에 자동 게시',
+            '  거부 → 새 초안 자동 재생성',
         ].filter(Boolean).join('\n');
 
         bot.sendMessage(msg.chat.id, welcome, { parse_mode: 'Markdown', reply_markup: MAIN_MENU_KEYBOARD });
@@ -354,8 +357,13 @@ export function registerCommands(bot, adminChatId) {
             '  /start — 메인 메뉴',
             '  /help — 이 도움말',
             '',
-            '💡 초안 생성 후 인라인 버튼으로 승인/수정/재생성/거부할 수 있습니다.',
-            '🔗 이미지가 있는 초안은 X+IG 동시 게시도 가능합니다.',
+            '*자동 운영 흐름:*',
+            '  매일 9:00 → 하루 초안 일괄 생성 → 검수',
+            '  승인 → 예약 시간에 자동 게시',
+            '  거부 → 새 초안 자동 재생성',
+            '',
+            '💡 수동 초안(/dx, /di)은 승인 즉시 게시됩니다.',
+            '🔗 수동 초안에 이미지가 있으면 X+IG 동시 게시도 가능합니다.',
         ].join('\n');
 
         bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });

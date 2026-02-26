@@ -1,22 +1,18 @@
 import cron from 'node-cron';
-import { sendScheduledDraftX, sendScheduledDraftIG } from './telegram.js';
+import { generateDailyDrafts, postScheduledSlot } from './telegram/scheduled.js';
 import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
 import { runDailyEditorial, runWeeklyEditorial, runMonthlyEditorial, runQuarterlyEditorial } from './editorialEvolution.js';
 import { updateTrends } from './trendAnalyzer.js';
-import { getXFormatForNow, getIGFormatForNow, getFormatName } from './contentCalendar.js';
 import { isSchedulerPaused } from './telegram/schedulerControl.js';
 import { notifyError, resetErrorCount, initErrorNotifier } from './telegram/errorNotifier.js';
 
 /**
- * X/IG 분리 스케줄러를 시작한다.
- * X와 IG 시간대를 오프셋하여 fal.ai 동시 부하를 방지한다.
+ * 스케줄러를 시작한다.
  *
- * 10:00 KST - X 자동 초안
- * 12:00 KST - IG 자동 초안 (이미지 생성)
- * 15:00 KST - X 자동 초안
- * 18:00 KST - IG 자동 초안 (이미지 생성)
- * 20:00 KST - X 자동 초안
+ * 09:00 KST - 오늘의 초안 일괄 생성 (관리자 검수용)
+ * 10:00, 15:00, 20:00 KST - 승인된 X 초안 자동 게시
+ * 12:00, 18:00 KST - 승인된 IG 초안 자동 게시
  * 00:00 KST - Analytics + 트렌드 분석
  */
 export function startScheduler(bot) {
@@ -24,89 +20,86 @@ export function startScheduler(bot) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
     initErrorNotifier(bot, adminChatId);
 
-    // --- X 자동 초안 (10:00, 15:00, 20:00 KST) ---
-    cron.schedule('0 10 * * *', async () => {
+    // --- 09:00 KST: 오늘의 초안 일괄 생성 (검수용) ---
+    cron.schedule('0 9 * * *', async () => {
         if (isSchedulerPaused()) {
-            console.log('[Scheduler] 10:00 KST X — 스케줄러 일시정지 상태. 건너뜀.');
+            console.log('[Scheduler] 09:00 KST — 스케줄러 일시정지 상태. 건너뜀.');
             return;
         }
-        const jobName = 'X_10:00';
-        const format = getXFormatForNow();
-        console.log(`[Scheduler] 10:00 KST X 자동 초안 생성 (포맷: ${getFormatName(format)})`);
+        const jobName = 'daily_generation';
+        console.log('[Scheduler] 09:00 KST 오늘의 초안 일괄 생성 시작');
         try {
-            await sendScheduledDraftX(bot, format);
+            await generateDailyDrafts(bot);
             resetErrorCount(jobName);
         } catch (err) {
-            console.error('[Scheduler] X 초안 전송 실패:', err.message);
+            console.error('[Scheduler] 초안 일괄 생성 실패:', err.message);
+            await notifyError(`scheduler:${jobName}`, err, { jobName });
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    // --- X 예약 게시 (10:00, 15:00, 20:00 KST) ---
+    cron.schedule('0 10 * * *', async () => {
+        if (isSchedulerPaused()) return;
+        const jobName = 'X_10:00';
+        console.log('[Scheduler] 10:00 KST X 예약 게시');
+        try {
+            await postScheduledSlot(bot, 'x_10');
+            resetErrorCount(jobName);
+        } catch (err) {
+            console.error('[Scheduler] X 10:00 게시 실패:', err.message);
             await notifyError(`scheduler:${jobName}`, err, { jobName });
         }
     }, { timezone: 'Asia/Seoul' });
 
     cron.schedule('0 15 * * *', async () => {
-        if (isSchedulerPaused()) {
-            console.log('[Scheduler] 15:00 KST X — 스케줄러 일시정지 상태. 건너뜀.');
-            return;
-        }
+        if (isSchedulerPaused()) return;
         const jobName = 'X_15:00';
-        const format = getXFormatForNow();
-        console.log(`[Scheduler] 15:00 KST X 자동 초안 생성 (포맷: ${getFormatName(format)})`);
+        console.log('[Scheduler] 15:00 KST X 예약 게시');
         try {
-            await sendScheduledDraftX(bot, format);
+            await postScheduledSlot(bot, 'x_15');
             resetErrorCount(jobName);
         } catch (err) {
-            console.error('[Scheduler] X 초안 전송 실패:', err.message);
+            console.error('[Scheduler] X 15:00 게시 실패:', err.message);
             await notifyError(`scheduler:${jobName}`, err, { jobName });
         }
     }, { timezone: 'Asia/Seoul' });
 
     cron.schedule('0 20 * * *', async () => {
-        if (isSchedulerPaused()) {
-            console.log('[Scheduler] 20:00 KST X — 스케줄러 일시정지 상태. 건너뜀.');
-            return;
-        }
+        if (isSchedulerPaused()) return;
         const jobName = 'X_20:00';
-        const format = getXFormatForNow();
-        console.log(`[Scheduler] 20:00 KST X 자동 초안 생성 (포맷: ${getFormatName(format)})`);
+        console.log('[Scheduler] 20:00 KST X 예약 게시');
         try {
-            await sendScheduledDraftX(bot, format);
+            await postScheduledSlot(bot, 'x_20');
             resetErrorCount(jobName);
         } catch (err) {
-            console.error('[Scheduler] X 초안 전송 실패:', err.message);
+            console.error('[Scheduler] X 20:00 게시 실패:', err.message);
             await notifyError(`scheduler:${jobName}`, err, { jobName });
         }
     }, { timezone: 'Asia/Seoul' });
 
-    // --- IG 자동 초안 (12:00, 18:00 KST) ---
+    // --- IG 예약 게시 (12:00, 18:00 KST) ---
     cron.schedule('0 12 * * *', async () => {
-        if (isSchedulerPaused()) {
-            console.log('[Scheduler] 12:00 KST IG — 스케줄러 일시정지 상태. 건너뜀.');
-            return;
-        }
+        if (isSchedulerPaused()) return;
         const jobName = 'IG_12:00';
-        const format = getIGFormatForNow();
-        console.log(`[Scheduler] 12:00 KST IG 자동 초안 생성 (포맷: ${getFormatName(format)})`);
+        console.log('[Scheduler] 12:00 KST IG 예약 게시');
         try {
-            await sendScheduledDraftIG(bot, format);
+            await postScheduledSlot(bot, 'ig_12');
             resetErrorCount(jobName);
         } catch (err) {
-            console.error('[Scheduler] IG 초안 전송 실패:', err.message);
+            console.error('[Scheduler] IG 12:00 게시 실패:', err.message);
             await notifyError(`scheduler:${jobName}`, err, { jobName });
         }
     }, { timezone: 'Asia/Seoul' });
 
     cron.schedule('0 18 * * *', async () => {
-        if (isSchedulerPaused()) {
-            console.log('[Scheduler] 18:00 KST IG — 스케줄러 일시정지 상태. 건너뜀.');
-            return;
-        }
+        if (isSchedulerPaused()) return;
         const jobName = 'IG_18:00';
-        const format = getIGFormatForNow();
-        console.log(`[Scheduler] 18:00 KST IG 자동 초안 생성 (포맷: ${getFormatName(format)})`);
+        console.log('[Scheduler] 18:00 KST IG 예약 게시');
         try {
-            await sendScheduledDraftIG(bot, format);
+            await postScheduledSlot(bot, 'ig_18');
             resetErrorCount(jobName);
         } catch (err) {
-            console.error('[Scheduler] IG 초안 전송 실패:', err.message);
+            console.error('[Scheduler] IG 18:00 게시 실패:', err.message);
             await notifyError(`scheduler:${jobName}`, err, { jobName });
         }
     }, { timezone: 'Asia/Seoul' });
@@ -180,5 +173,5 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    console.log('[Scheduler] 스케줄러 시작 (X: 10:00, 15:00, 20:00 / IG: 12:00, 18:00 / 분석: 00:00 / 에디토리얼: 01-04:00 KST)');
+    console.log('[Scheduler] 스케줄러 시작 (초안생성: 09:00 / X 게시: 10:00, 15:00, 20:00 / IG 게시: 12:00, 18:00 / 분석: 00:00 / 에디토리얼: 01-04:00 KST)');
 }

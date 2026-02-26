@@ -88,9 +88,11 @@ export const CN_TYPE_KEYBOARD = {
     ],
 };
 
-// 메인 메뉴 키보드
+// 메인 메뉴 키보드 (수동/자동/시스템 3섹션)
 export const MAIN_MENU_KEYBOARD = {
     inline_keyboard: [
+        // ── 수동 컨텐츠 ──
+        [{ text: '── ✋ 수동 컨텐츠 ──', callback_data: 'section_manual' }],
         [
             { text: '📝 X 초안 생성', callback_data: 'menu_dx' },
             { text: '📸 IG 화보 생성', callback_data: 'menu_di' },
@@ -99,25 +101,52 @@ export const MAIN_MENU_KEYBOARD = {
             { text: '📰 카드뉴스 제작', callback_data: 'menu_cn' },
             { text: '🤖 AI 기획 회의', callback_data: 'menu_askai' },
         ],
+        // ── 자동 관리 ──
+        [{ text: '── 🤖 자동 관리 ──', callback_data: 'section_auto' }],
+        [
+            { text: '⏰ 스케줄러 관리', callback_data: 'menu_scheduler' },
+            { text: '📅 오늘 편성표', callback_data: 'menu_schedule' },
+        ],
+        [
+            { text: '📜 초안 이력', callback_data: 'menu_history' },
+        ],
+        // ── 시스템 ──
+        [{ text: '── 📊 시스템 ──', callback_data: 'section_system' }],
         [
             { text: '📊 시스템 현황', callback_data: 'menu_status' },
             { text: '📈 주간 리포트', callback_data: 'menu_report' },
         ],
         [
             { text: '📋 포맷 관리', callback_data: 'menu_listformat' },
-            { text: '📅 오늘 편성표', callback_data: 'menu_schedule' },
-        ],
-        [
-            { text: '⏰ 스케줄러 관리', callback_data: 'menu_scheduler' },
-            { text: '📜 초안 이력', callback_data: 'menu_history' },
         ],
     ],
 };
 
 /**
+ * 예약 초안용 인라인 키보드 (승인 시 예약 게시)
+ */
+export function makeScheduledDraftKeyboard(scheduledHour, platform) {
+    const platformLabel = platform === 'instagram' ? 'IG' : 'X';
+    return {
+        inline_keyboard: [
+            [{ text: `✅ 승인 (${scheduledHour}:00 ${platformLabel} 게시)`, callback_data: 'approve_scheduled' }],
+            [
+                { text: '✏️ 수정', callback_data: 'edit' },
+                { text: '💬 AI 수정', callback_data: 'ai_refine' },
+            ],
+            [{ text: '❌ 거부 (새로 생성)', callback_data: 'reject' }],
+        ],
+    };
+}
+
+/**
  * 초안의 이미지 유무에 따라 적절한 키보드 반환
  */
 export function getDraftKeyboard(draft) {
+    // 예약 초안은 전용 키보드 사용
+    if (draft.slotKey) {
+        return makeScheduledDraftKeyboard(draft.scheduledHour, draft.platform);
+    }
     if (draft.imageUrl) {
         return CROSS_POST_KEYBOARD;
     }
