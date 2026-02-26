@@ -8,7 +8,9 @@
         "test": "node scripts/test.js"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.78.0",
         "@fal-ai/client": "^1.2.1",
+        "@google/genai": "^1.43.0",
         "dotenv": "^16.0.0",
         "express": "^5.2.1",
         "firebase-admin": "^13.6.1",

@@ -8,6 +8,7 @@ import { getExternalTrendPrompt } from './trendScraper.js';
 import { addFormat, getFormats, deleteFormat, getRandomFormatDraft } from './formatManager.js';
 import { brainstormFormat } from './aiBrainstorm.js';
 import { runAnalyticsWithReport } from './analytics.js';
+import { getEditorialDirectionPrompt } from './editorialEvolution.js';
 
 // 초안 상태 관리
 const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
@@ -224,9 +225,10 @@ export function createTelegramBot() {
             return;
         }
 
+        const editorialPrompt = await getEditorialDirectionPrompt();
         const trendPrompt = await getTrendWeightsPrompt();
         const externalPrompt = await getExternalTrendPrompt();
-        const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
         if (prompts) {
             draft.text = `${prompts}\n\n${draft.text}`;
         }
@@ -263,9 +265,10 @@ export function createTelegramBot() {
             return;
         }
 
+        const editorialPrompt = await getEditorialDirectionPrompt();
         const trendPrompt = await getTrendWeightsPrompt();
         const externalPrompt = await getExternalTrendPrompt();
-        const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
         if (prompts) {
             draft.text = `${prompts}\n\n${draft.text}`;
         }
@@ -815,9 +818,10 @@ export async function sendScheduledDraftX(bot) {
 
     if (!draft) return;
 
+    const editorialPrompt = await getEditorialDirectionPrompt();
     const trendPrompt = await getTrendWeightsPrompt();
     const externalPrompt = await getExternalTrendPrompt();
-    const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+    const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
     if (prompts) {
         draft.text = `${prompts}\n\n${draft.text}`;
     }
@@ -867,9 +871,10 @@ export async function sendScheduledDraftIG(bot) {
 
     if (!draft) return;
 
+    const editorialPrompt = await getEditorialDirectionPrompt();
     const trendPrompt = await getTrendWeightsPrompt();
     const externalPrompt = await getExternalTrendPrompt();
-    const prompts = [trendPrompt, externalPrompt].filter(Boolean).join('\n');
+    const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
     if (prompts) {
         draft.text = `${prompts}\n\n${draft.text}`;
     }

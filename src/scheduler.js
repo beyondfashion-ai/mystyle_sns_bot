@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { sendScheduledDraftX, sendScheduledDraftIG } from './telegram.js';
 import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
+import { runDailyEditorial, runWeeklyEditorial, runMonthlyEditorial, runQuarterlyEditorial } from './editorialEvolution.js';
 
 /**
  * 스케줄러 에러를 관리자에게 텔레그램으로 알린다.
@@ -100,5 +101,50 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    console.log('[Scheduler] 스케줄러 시작 (X: 10:00, 15:00, 20:00 / IG: 12:00, 18:00 / 분석: 00:00 KST)');
+    // --- 에디토리얼 진화 (Editorial Evolution) ---
+    // 매일 01:00 KST - 일간 에디토리얼 미세 조정
+    cron.schedule('0 1 * * *', async () => {
+        console.log('[Scheduler] 01:00 KST 일간 에디토리얼 분석');
+        try {
+            await runDailyEditorial();
+        } catch (err) {
+            console.error('[Scheduler] 일간 에디토리얼 실패:', err.message);
+            await notifyError(bot, '일간 에디토리얼 (01:00)', err);
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    // 매주 일요일 02:00 KST - 주간 에디토리얼 방향 조정
+    cron.schedule('0 2 * * 0', async () => {
+        console.log('[Scheduler] 02:00 KST 주간 에디토리얼 분석');
+        try {
+            await runWeeklyEditorial();
+        } catch (err) {
+            console.error('[Scheduler] 주간 에디토리얼 실패:', err.message);
+            await notifyError(bot, '주간 에디토리얼 (02:00)', err);
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    // 매월 1일 03:00 KST - 월간 에디토리얼 전략 재평가
+    cron.schedule('0 3 1 * *', async () => {
+        console.log('[Scheduler] 03:00 KST 월간 에디토리얼 분석');
+        try {
+            await runMonthlyEditorial();
+        } catch (err) {
+            console.error('[Scheduler] 월간 에디토리얼 실패:', err.message);
+            await notifyError(bot, '월간 에디토리얼 (03:00)', err);
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    // 분기 첫 달 1일 04:00 KST - 분기 에디토리얼 비전 재설정
+    cron.schedule('0 4 1 1,4,7,10 *', async () => {
+        console.log('[Scheduler] 04:00 KST 분기 에디토리얼 분석');
+        try {
+            await runQuarterlyEditorial();
+        } catch (err) {
+            console.error('[Scheduler] 분기 에디토리얼 실패:', err.message);
+            await notifyError(bot, '분기 에디토리얼 (04:00)', err);
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    console.log('[Scheduler] 스케줄러 시작 (X: 10:00, 15:00, 20:00 / IG: 12:00, 18:00 / 분석: 00:00 / 에디토리얼: 01-04:00 KST)');
 }

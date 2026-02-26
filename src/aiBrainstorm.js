@@ -1,7 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getEditorialDirectionPrompt } from './editorialEvolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,8 +30,48 @@ function loadStrategyContext() {
 }
 
 /**
- * Gemini API를 사용하여 SNS 기획(포맷) 생성/아이데이션을 지원합니다.
- * 브랜딩 전략서와 에디토리얼 전략서를 컨텍스트로 활용합니다.
+ * Step 2: Claude Sonnet으로 Gemini 초안을 최종 SNS 본문으로 폴리싱한다.
+ * ANTHROPIC_API_KEY 미설정 시 Gemini 결과 그대로 반환 (fallback).
+ */
+async function polishWithClaude(geminiBrief) {
+    if (!process.env.ANTHROPIC_API_KEY) return geminiBrief;
+
+    const polishPrompt = `당신은 'mystyleKPOP' 글로벌 AI 패션 K-POP 매거진의 최종 에디터입니다.
+아래는 Gemini AI가 작성한 콘텐츠 기획 초안(Brief)입니다.
+이 초안을 세련되고 전문적인 최종 SNS 본문으로 다듬어주세요.
+
+## 폴리싱 규칙
+1. **K-POP 50 + 패션 50 균형**: K-POP 맥락과 패션 분석이 동등하게 포함되어야 합니다.
+2. **브랜드 톤**: 전문적이면서 팬이 공감할 수 있는 톤. 지나치게 격식적이거나 캐주얼하지 않게.
+3. **금지 표현**: "~인 것 같다", "~하게 된다", "대박", "레전드" 절대 금지.
+4. **강한 오프닝**: 숫자/팩트/대비로 시작. 감정적 감탄사 금지.
+5. **구조**: K-POP 맥락 → 패션 분석 → 팬 적용 포인트 3단계.
+6. **에디토리얼 클로저**: 도입부 키워드를 마무리에서 회수.
+7. **CTA**: my-style.ai 서비스 유도 포함.
+8. 초안의 [포맷명], [컨셉 설명], [프롬프트 원문] 구조는 유지하되 내용을 다듬으세요.
+
+## Gemini 초안
+${geminiBrief}`;
+
+    try {
+        const client = new Anthropic();
+        const response = await client.messages.create({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 1024,
+            messages: [{ role: 'user', content: polishPrompt }],
+        });
+        return response.content[0].text;
+    } catch (err) {
+        console.error('[Claude] 폴리싱 중 오류 발생, Gemini 결과 사용:', err.message);
+        return geminiBrief;
+    }
+}
+
+/**
+ * Gemini→Claude 2단계 하이브리드 파이프라인으로 SNS 기획(포맷)을 생성한다.
+ * Step 1 (Gemini 2.5 Flash - Drafting): 전략서 + 트렌드 + 에디토리얼 방향 기반 Brief 생성
+ * Step 2 (Claude Sonnet - Polishing): Brief를 최종 SNS 본문으로 다듬기
+ * Fallback: ANTHROPIC_API_KEY 미설정 시 Gemini 결과 그대로 반환
  */
 export async function brainstormFormat(platform, requestText) {
     if (!process.env.GEMINI_API_KEY) {
@@ -38,6 +80,7 @@ export async function brainstormFormat(platform, requestText) {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const strategyContext = loadStrategyContext();
+    const editorialPrompt = await getEditorialDirectionPrompt();
 
     const systemPrompt = `당신은 'mystyleKPOP' 글로벌 AI 패션 매거진의 수석 에디터입니다.
 이 매거진은 K-POP 아티스트의 실명을 언급하며, 실제 사진이 아닌 Vibe-Alike(분위기 유사) AI 가상 모델 이미지와 함께 다음 컴백/사복/무대의상을 제안합니다.
@@ -46,7 +89,7 @@ export async function brainstormFormat(platform, requestText) {
 아래 전략서를 반드시 참고하여 브랜드 톤, 글쓰기 규칙, 분석 구조를 따르세요.
 
 ${strategyContext}
-
+${editorialPrompt ? `\n${editorialPrompt}\n` : ''}
 ## 요청
 지금 봇 관리자가 텔레그램을 통해 "${platform}" 플랫폼에 올릴 **새로운 콘텐츠 기획 포맷(템플릿)** 아이디어를 물어봤습니다.
 사용자의 요청사항: "${requestText}"
@@ -68,12 +111,16 @@ ${strategyContext}
 `;
 
     try {
+        // Step 1: Gemini가 전략서+트렌드 읽고 Brief 생성
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: systemPrompt,
         });
+        const geminiBrief = response.text;
 
-        return response.text;
+        // Step 2: Claude가 Brief를 최종 SNS 본문으로 polishing
+        const polished = await polishWithClaude(geminiBrief);
+        return polished;
     } catch (err) {
         console.error('[Gemini] 아이데이션 중 오류 발생:', err.message);
         throw new Error(`AI 호출 중 문제가 발생했습니다: ${err.message}`);
