@@ -24,6 +24,20 @@ mystyleKPOP의 비주얼 아이덴티티는 Highsnobiety의 에디토리얼 사�
 - 시그니처 악센트: Red (강렬한 포인트 컬러)
 - 전반적으로 세련되고 정교한 색상 조작
 
+### 2025-26 포토그래피 트렌드 (Highsnobiety 반영)
+- **Authenticity Over Perfection**: 완벽함보다 진정성. Raw하고 캔디드한 느낌
+- **Direct Flash**: 대담한 하드 섀도우, 볼드 하이라이트 (2025-26 트렌드)
+- **Cinematic Quality**: 모든 이미지가 영화의 한 프레임처럼
+- **Grainy Film Texture**: 필름 그레인, 페이디드 컬러, 노스탤직 무드
+- **Motion & Energy**: 의도적 모션 블러, 롱 익스포저로 에너지 표현
+- **Mixed-Media**: 매거진 스타일 레이아웃, 텍스트+이미지+프레임 결합
+- **Fashion Illustration 융합**: 2026년은 "패션 일러스트레이터의 해" (Highsnobiety)
+
+### K-POP 커버리지 참조
+- NewJeans Highsnobiety 프린트 커버 (2023): Chrome Hearts, Louis Vuitton, Supreme 스타일링
+- K-POP의 글로벌 영향력이 한국 패션의 새로운 인식 전달에 기여
+- 스트리트웨어 DNA를 유지하며 하이패션 요소 결합
+
 ---
 
 ## 핵심 원칙: Vibe-Alike
@@ -105,7 +119,9 @@ grid-based editorial framing
 - 스타일: digital_illustration
 - 컬러: 카테고리별 팔레트 지정
 
-## 종합 프롬프트 예시 (Highsnobiety 스타일)
+## 종합 프롬프트 예시
+
+### 예시 A: 스튜디오 에디토리얼 (Highsnobiety 클래식)
 ```
 AI virtual fashion model (NOT a real person, NOT a face clone),
 inspired by K-POP idol aesthetic vibes.
@@ -118,6 +134,34 @@ single statement chain accessory,
 contemporary luxury meets streetwear aesthetic,
 dark moody studio backdrop,
 professional quality, shot on medium format.
+```
+
+### 예시 B: 스트릿 캔디드 (2026 트렌드)
+```
+AI virtual fashion model (NOT a real person, NOT a face clone),
+inspired by K-POP idol aesthetic vibes.
+Raw candid street fashion photography, authenticity over perfection,
+direct flash hard shadows with bold highlights,
+slight grainy film texture, faded nostalgic color grading,
+urban backdrop with graffiti walls and neon signs,
+wide angle low perspective dynamic composition,
+high-end streetwear with oversized silhouette,
+K-POP meets urban luxury aesthetic,
+energetic natural pose with subtle motion blur.
+```
+
+### 예시 C: 시네마틱 서사 (무대/MV)
+```
+AI virtual fashion model (NOT a real person, NOT a face clone),
+inspired by K-POP idol aesthetic vibes.
+Cinematic fashion editorial, every frame like a movie still,
+rich cinematic color grading with vivid saturation,
+colored gel lighting in purple and pink tones,
+dreamlike surreal composition with depth,
+metallic and sequin costume details catching spotlight,
+letterboxed cinematic frame,
+dramatic backstage concert atmosphere,
+storytelling fashion mood, dynamic performance energy.
 ```
 
 ## 품질 체크리스트
