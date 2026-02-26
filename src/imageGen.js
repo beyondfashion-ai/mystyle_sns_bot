@@ -234,7 +234,7 @@ export async function generateImageForDraft(draft) {
 
     const timestamp = Date.now();
     const safeArtist = (draft.artist || 'unknown').replace(/[^a-zA-Z0-9]/g, '_');
-    const filename = `${draft.category}_${safeArtist}_${timestamp}.jpg`;
+    const filename = `${draft.category}_${safeArtist}_${timestamp}.png`;
 
     return uploadToFirebaseStorage(image.url, filename);
 }

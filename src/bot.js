@@ -248,9 +248,12 @@ export async function postToSNS({ platforms, text, imageUrls }) {
  * @param {Array<{text: string, imageUrls?: string[]}>} tweets - 트윗 배열
  */
 export async function postThread(tweets) {
-    const rateCheck = checkXRateLimit();
-    if (!rateCheck.allowed) {
-        return { success: false, error: rateCheck.reason };
+    // 스레드 내 트윗 수만큼 rate limit 체크 및 카운팅
+    for (let i = 0; i < tweets.length; i++) {
+        const rateCheck = checkXRateLimit();
+        if (!rateCheck.allowed) {
+            return { success: false, error: `${rateCheck.reason} (트윗 ${i + 1}/${tweets.length}번째에서 차단)` };
+        }
     }
 
     try {

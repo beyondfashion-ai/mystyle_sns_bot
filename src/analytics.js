@@ -39,8 +39,6 @@ const SCORE_WEIGHTS = {
  */
 async function getXMetrics(tweetId) {
     try {
-        const client = new TwitterApi(process.env.X_ACCESS_TOKEN); // using bearer token or user token based on v2 access level
-        // For app-only authentication (Bearer Token) we might prefer that over user context if only reading metrics
         const roClient = process.env.X_BEARER_TOKEN ?
             new TwitterApi(process.env.X_BEARER_TOKEN).readOnly :
             new TwitterApi({

@@ -3,6 +3,7 @@ import { sendScheduledDraftX, sendScheduledDraftIG } from './telegram.js';
 import { runAnalyticsWithReport } from './analytics.js';
 import { scrapeExternalTrends } from './trendScraper.js';
 import { runDailyEditorial, runWeeklyEditorial, runMonthlyEditorial, runQuarterlyEditorial } from './editorialEvolution.js';
+import { updateTrends } from './trendAnalyzer.js';
 
 /**
  * 스케줄러 에러를 관리자에게 텔레그램으로 알린다.
@@ -82,12 +83,13 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    // --- 매일 자정에 통계 업데이트 및 외부 트렌드 수집 + 리포트 전송 (KST) ---
+    // --- 매일 자정에 통계 업데이트 및 외부 트렌드 수집 + 내부 트렌드 가중치 분석 + 리포트 전송 (KST) ---
     cron.schedule('0 0 * * *', async () => {
-        console.log('[Scheduler] 00:00 KST SNS 성과 분석 / 외부 트렌드 수집 + 리포트 전송 시작');
+        console.log('[Scheduler] 00:00 KST SNS 성과 분석 / 외부 트렌드 수집 / 내부 트렌드 가중치 분석 + 리포트 전송 시작');
         try {
             const report = await runAnalyticsWithReport();
             await scrapeExternalTrends();
+            await updateTrends(); // 내부 engagement 기반 트렌드 가중치 분석
 
             // Send report to admin
             const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;

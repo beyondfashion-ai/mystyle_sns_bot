@@ -40,7 +40,7 @@ JSON 형식으로만 응답하세요:
     try {
         const client = new Anthropic();
         const response = await client.messages.create({
-            model: 'claude-sonnet-4-5-20250929',
+            model: 'claude-sonnet-4-5',
             max_tokens: 512,
             messages: [{ role: 'user', content: refinePrompt }],
         });
