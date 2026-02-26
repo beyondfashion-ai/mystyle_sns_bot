@@ -17,29 +17,40 @@ const VIBE_ALIKE_PREFIX =
     'inspired by K-POP idol aesthetic vibes. ' +
     'High-fashion magazine quality, professional studio lighting. ';
 
-// 카테고리별 프롬프트 매핑
+// 카테고리별 프롬프트 매핑 (에디토리얼 전략 반영)
 const CATEGORY_PROMPTS = {
     comeback_lookbook:
-        'Dramatic lighting, magazine cover composition, bold color palette, ' +
-        'avant-garde fashion styling, editorial mood.',
+        'High-end fashion magazine cover, dramatic chiaroscuro lighting, ' +
+        'bold avant-garde silhouette with structured shoulders, ' +
+        'dark studio backdrop with single color accent, editorial composition. ' +
+        'Shot on medium format camera, shallow depth of field.',
     style_editorial:
-        'Cinematic color grading, haute couture fashion editorial, ' +
-        'luxury fashion brand aesthetic, artistic composition.',
+        'Cinematic fashion editorial, desaturated color grading with warm highlights, ' +
+        'haute couture layering with mixed textures (satin, mesh, leather), ' +
+        'full body shot showing silhouette proportions, luxury brand aesthetic.',
     vibe_alike:
-        'Professional studio fashion photoshoot, clean backdrop, ' +
-        'trendy K-POP inspired outfit, high-end streetwear.',
+        'Clean studio fashion photoshoot, seamless white or grey backdrop, ' +
+        'contemporary K-POP inspired streetwear styling, ' +
+        'oversized outerwear with slim bottom contrast, ' +
+        'single statement accessory, natural pose.',
     stage_look:
-        'Stage performance costume, spotlight dramatic lighting, ' +
-        'glitter and embellishments, concert atmosphere.',
+        'Concert stage performance atmosphere, dramatic spotlight with lens flare, ' +
+        'metallic and sequin costume details catching light, ' +
+        'three different fabric textures visible, dynamic pose.',
     weekly_trend:
-        'Trend report visual layout, modern fashion collage aesthetic, ' +
-        'clean typography-friendly composition, pastel tones.',
+        'Minimalist fashion flat lay composition on dark surface, ' +
+        'curated selection of trending items with clean spacing, ' +
+        'overhead shot, muted color palette with one accent color, ' +
+        'editorial product photography style.',
     airport_fashion:
-        'Casual luxury style, natural daylight, airport terminal background, ' +
-        'oversized sunglasses, designer bag, relaxed pose.',
+        'Candid street style photography, natural daylight, ' +
+        'minimal luxury outfit with oversized silhouette, ' +
+        'designer carry-on bag detail visible, relaxed confident stance, ' +
+        'urban terminal architecture background blurred.',
     mv_analysis:
-        'Music video styling analysis layout, cinematic wide shot, ' +
-        'vivid color palette, storytelling fashion mood.',
+        'Cinematic wide shot, music video color grading with vivid saturation, ' +
+        'multiple outfit elements telling a visual narrative, ' +
+        'dramatic backdrop with depth, storytelling composition.',
 };
 
 /**

@@ -3,57 +3,114 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&family=Inter:wght@300;400;700;900&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 1080px; height: 1350px;
-    font-family: 'Noto Sans KR', sans-serif;
-    background: {{gradient}};
+    font-family: 'Noto Sans KR', 'Inter', sans-serif;
+    background: #0a0a0a;
     display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
     color: #fff; overflow: hidden; position: relative;
   }
   .bg-image {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background-image: url('{{imageUrl}}');
     background-size: cover; background-position: center;
-    opacity: 0.3; z-index: 0;
+    opacity: 0.25; z-index: 0;
   }
-  .overlay {
+  .gradient-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.4); z-index: 1;
+    background: {{gradient}};
+    opacity: 0.85; z-index: 1;
+  }
+  .noise-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px, rgba(255,255,255,0.01) 2px, rgba(255,255,255,0.01) 4px
+    );
+    z-index: 2;
   }
   .content {
-    position: relative; z-index: 2;
-    text-align: center; padding: 60px;
+    position: relative; z-index: 3;
+    display: flex; flex-direction: column;
+    height: 100%; padding: 70px 80px;
+  }
+  .top-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: auto;
   }
   .logo {
-    font-size: 28px; font-weight: 700; letter-spacing: 4px;
-    margin-bottom: 60px; opacity: 0.9;
+    font-family: 'Inter', sans-serif;
+    font-size: 20px; font-weight: 700; letter-spacing: 6px;
+    text-transform: uppercase; opacity: 0.7;
+  }
+  .issue-badge {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px; font-weight: 400; letter-spacing: 3px;
+    opacity: 0.5; text-transform: uppercase;
+  }
+  .main-content {
+    margin-bottom: auto;
+  }
+  .category-tag {
+    font-family: 'Inter', sans-serif;
+    display: inline-block;
+    font-size: 13px; font-weight: 700; letter-spacing: 4px;
+    text-transform: uppercase; opacity: 0.6;
+    margin-bottom: 30px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
   }
   .title {
-    font-size: 64px; font-weight: 900; line-height: 1.3;
-    margin-bottom: 40px; text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    font-size: 56px; font-weight: 900; line-height: 1.25;
+    margin-bottom: 32px; letter-spacing: -1px;
+    max-width: 800px;
+  }
+  .divider {
+    width: 60px; height: 2px;
+    background: rgba(255,255,255,0.4);
+    margin-bottom: 28px;
   }
   .subtitle {
-    font-size: 28px; font-weight: 400; opacity: 0.85;
-    line-height: 1.5;
+    font-size: 22px; font-weight: 300; opacity: 0.75;
+    line-height: 1.6; max-width: 700px;
+    letter-spacing: 0.5px;
   }
-  .badge {
-    display: inline-block; margin-top: 50px;
-    padding: 12px 36px; border: 2px solid rgba(255,255,255,0.6);
-    border-radius: 30px; font-size: 22px; letter-spacing: 2px;
+  .bottom-bar {
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .mag-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 400; letter-spacing: 3px;
+    text-transform: uppercase; opacity: 0.4;
+    line-height: 1.8;
+  }
+  .page-indicator {
+    font-family: 'Inter', sans-serif;
+    font-size: 48px; font-weight: 900; opacity: 0.08;
+    letter-spacing: -2px;
   }
 </style>
 </head>
 <body>
   <div class="bg-image"></div>
-  <div class="overlay"></div>
+  <div class="gradient-overlay"></div>
+  <div class="noise-overlay"></div>
   <div class="content">
-    <div class="logo">mystyleKPOP</div>
-    <div class="title">{{title}}</div>
-    <div class="subtitle">{{subtitle}}</div>
-    <div class="badge">AI FASHION MAGAZINE</div>
+    <div class="top-bar">
+      <div class="logo">mystyleKPOP</div>
+      <div class="issue-badge">AI Fashion Magazine</div>
+    </div>
+    <div class="main-content">
+      <div class="category-tag">Editorial</div>
+      <div class="title">{{title}}</div>
+      <div class="divider"></div>
+      <div class="subtitle">{{subtitle}}</div>
+    </div>
+    <div class="bottom-bar">
+      <div class="mag-label">AI-Generated Content<br>Vibe-Alike Virtual Model</div>
+      <div class="page-indicator">01</div>
+    </div>
   </div>
 </body>
 </html>

@@ -3,61 +3,119 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&family=Inter:wght@300;400;700;900&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 1080px; height: 1350px;
-    font-family: 'Noto Sans KR', sans-serif;
-    background: {{gradient}};
+    font-family: 'Noto Sans KR', 'Inter', sans-serif;
+    background: #0a0a0a;
     display: flex; flex-direction: column;
     color: #fff; overflow: hidden; position: relative;
   }
-  .number-badge {
-    position: absolute; top: 50px; left: 60px;
-    width: 80px; height: 80px; border-radius: 50%;
-    background: rgba(255,255,255,0.2); backdrop-filter: blur(10px);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 36px; font-weight: 900;
+  .gradient-bg {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: {{gradient}};
+    opacity: 0.15; z-index: 0;
+  }
+  .grid-line-v {
+    position: absolute; left: 80px; top: 0; width: 1px; height: 100%;
+    background: rgba(255,255,255,0.04); z-index: 1;
+  }
+  .grid-line-h {
+    position: absolute; left: 0; top: 200px; width: 100%; height: 1px;
+    background: rgba(255,255,255,0.04); z-index: 1;
+  }
+  .content {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column;
+    height: 100%; padding: 70px 80px;
   }
   .header {
-    padding: 60px 60px 30px 160px;
+    display: flex; align-items: flex-start; gap: 30px;
+    margin-bottom: 40px;
   }
-  .header .label {
-    font-size: 18px; letter-spacing: 3px; opacity: 0.7;
+  .number {
+    font-family: 'Inter', sans-serif;
+    font-size: 100px; font-weight: 900; line-height: 1;
+    opacity: 0.12; letter-spacing: -4px;
+    min-width: 100px;
+  }
+  .header-text {
+    padding-top: 20px;
+  }
+  .header-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 400; letter-spacing: 4px;
+    text-transform: uppercase; opacity: 0.4;
     margin-bottom: 12px;
   }
-  .header .title {
-    font-size: 44px; font-weight: 900; line-height: 1.3;
+  .header-title {
+    font-size: 42px; font-weight: 900; line-height: 1.3;
+    letter-spacing: -0.5px;
+  }
+  .separator {
+    width: 100%; height: 1px;
+    background: rgba(255,255,255,0.08);
+    margin-bottom: 40px;
   }
   .image-area {
-    flex: 1; margin: 20px 60px;
-    border-radius: 20px; overflow: hidden;
+    flex: 1; margin-bottom: 40px;
+    border-radius: 8px; overflow: hidden;
     background-image: url('{{imageUrl}}');
     background-size: cover; background-position: center;
-    min-height: 500px;
+    min-height: 480px;
+    position: relative;
+  }
+  .image-area::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 120px;
+    background: linear-gradient(transparent, rgba(10,10,10,0.8));
   }
   .image-area.no-image {
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
     display: flex; align-items: center; justify-content: center;
   }
   .description {
-    padding: 30px 60px 60px;
-    font-size: 26px; line-height: 1.7; opacity: 0.9;
+    font-size: 24px; line-height: 1.8; opacity: 0.85;
+    font-weight: 300; letter-spacing: 0.3px;
+    max-width: 900px;
   }
   .footer {
-    padding: 0 60px 40px;
-    font-size: 16px; opacity: 0.5; letter-spacing: 2px;
+    margin-top: auto; padding-top: 30px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer-logo {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 400; letter-spacing: 3px;
+    text-transform: uppercase; opacity: 0.3;
+  }
+  .footer-page {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 400; opacity: 0.3;
+    letter-spacing: 2px;
   }
 </style>
 </head>
 <body>
-  <div class="number-badge">{{number}}</div>
-  <div class="header">
-    <div class="label">mystyleKPOP</div>
-    <div class="title">{{title}}</div>
+  <div class="gradient-bg"></div>
+  <div class="grid-line-v"></div>
+  <div class="grid-line-h"></div>
+  <div class="content">
+    <div class="header">
+      <div class="number">{{number}}</div>
+      <div class="header-text">
+        <div class="header-label">Point {{number}}</div>
+        <div class="header-title">{{title}}</div>
+      </div>
+    </div>
+    <div class="separator"></div>
+    <div class="image-area {{imageClass}}"></div>
+    <div class="description">{{description}}</div>
+    <div class="footer">
+      <div class="footer-logo">mystyleKPOP</div>
+      <div class="footer-page">0{{number}} / 05</div>
+    </div>
   </div>
-  <div class="image-area {{imageClass}}"></div>
-  <div class="description">{{description}}</div>
-  <div class="footer">mystyleKPOP AI FASHION MAGAZINE</div>
 </body>
 </html>
