@@ -29,6 +29,26 @@ mystyleKPOP의 글쓰기 톤은 Hypebeast의 에디토리얼 스타일을 참조
 - 패션/리테일/뷰티 업계 종사자 대상 전문 정보
 - 핵심 요점만 추출하는 편집 능력
 
+### 한국 패션 매거진 레퍼런스
+
+**DAZED Korea:**
+- "가장 크리에이티브하고 자유로운 패션 매거진" 포지셔닝
+- Bold & Directional 비주얼, 아티스트를 하이패션 맥락에 재배치
+- aespa 닝닝 x Gucci 커버, RIIZE 소희 커버 등 K-POP 적극 커버
+- 팬서비스가 아닌 예술적 재해석 중심
+
+**Vogue Korea:**
+- "보그체": 한국어+영어/프랑스어를 믹스한 독특한 어조
+- 30년 역사의 권위, 4.8M Instagram 팔로워
+- 에디토리얼 밀도: 월간 15~17개 에디토리얼 스프레드
+
+**W Korea:**
+- K-POP 아이돌 피처링 적극 활용 (LE SSERAFIM, NMIXX 등)
+- K-POP 아이돌이 할리우드 배우보다 매거진 커버에 더 많이 등장
+
+### mystyleKPOP 톤 포지셔닝
+> DAZED의 크리에이티브 대담함 + Vogue Korea의 권위 + Hypebeast의 스트릿 감각
+
 ---
 
 ## 작업 플로우
