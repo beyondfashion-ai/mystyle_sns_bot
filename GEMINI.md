@@ -35,7 +35,7 @@ X(Twitter)와 Instagram에 AI 패션 K-POP 매거진 콘텐츠를 자동 게시�
 - 순수 JavaScript 사용. TypeScript 문법(타입 어노테이션 등) 사용 금지
 - ES Module (`import`/`export`) 전용. CommonJS 사용 금지
 - 비동기 처리는 async/await
-- 환경 변수는 `.env`로 관리. 코드에 시크릿 하드코딩 절대 금지
+- 환경 변수는 `.env.local`로 관리. 코드에 시크릿 하드코딩 절대 금지
 
 ## 실행 명령어
 

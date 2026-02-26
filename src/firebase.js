@@ -3,7 +3,11 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config();
+if (fs.existsSync('.env.local')) {
+  dotenv.config({ path: '.env.local' });
+} else {
+  dotenv.config();
+}
 
 // Initialize Firebase Admin SDK
 // You must set the path to your service account key file in your .env

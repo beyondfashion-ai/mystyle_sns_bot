@@ -2,8 +2,13 @@ import { fal } from '@fal-ai/client';
 import admin from 'firebase-admin';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { existsSync } from 'fs';
 
-dotenv.config();
+if (existsSync('.env.local')) {
+    dotenv.config({ path: '.env.local' });
+} else {
+    dotenv.config();
+}
 
 // fal.ai 클라이언트 설정
 fal.config({ credentials: process.env.FAL_AI_KEY });

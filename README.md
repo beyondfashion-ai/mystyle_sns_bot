@@ -14,7 +14,7 @@ mystyleKPOP 브랜드를 **"글로벌 AI 패션 K-POP 매거진"**으로 포지�
    npm install
    ```
 2. **환경 변수 설정:**
-   - `.env.example` 파일을 복사하여 `.env` 파일을 생성합니다.
+   - `.env.example` 파일을 복사하여 `.env.local` 파일을 생성하여 개인 설정을 관리합니다.
    - 각 SNS 플랫폼의 API 키를 입력합니다.
 3. **테스트 실행:**
    ```bash

@@ -1,9 +1,15 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import { existsSync } from 'fs';
 import { createTelegramBot } from './telegram.js';
 import { startScheduler } from './scheduler.js';
 
-dotenv.config();
+// Load .env.local first if it exists, otherwise fall back to .env
+if (existsSync('.env.local')) {
+    dotenv.config({ path: '.env.local' });
+} else {
+    dotenv.config();
+}
 
 // ===== 환경변수 검증 =====
 function validateEnv() {
@@ -27,7 +33,7 @@ function validateEnv() {
     if (missing.length > 0) {
         console.error('[Server] 필수 환경변수가 누락되었습니다:');
         missing.forEach(e => console.error(`  - ${e.key}: ${e.desc}`));
-        console.error('[Server] .env 파일을 확인하세요. (.env.example 참고)');
+        console.error('[Server] .env.local 파일을 확인하세요. (.env.example 참고)');
         process.exit(1);
     }
 

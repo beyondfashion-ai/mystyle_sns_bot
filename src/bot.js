@@ -1,9 +1,14 @@
 import { TwitterApi } from "twitter-api-v2";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import { existsSync } from "fs";
 import { db } from "./firebase.js";
 
-dotenv.config();
+if (existsSync('.env.local')) {
+    dotenv.config({ path: '.env.local' });
+} else {
+    dotenv.config();
+}
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 10000;
 
