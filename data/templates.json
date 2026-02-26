@@ -7,82 +7,82 @@
   "emojis": ["🔥", "✨", "💫", "🌟", "💜", "🖤", "💖", "⚡", "🎵", "👑"],
   "editorial": [
     {
-      "text": "{artist}의 지난 3번의 컴백, 매번 다른 컬러 팔레트를 선택했다. {emoji}\n이번에는 어떤 조합이 올까? 에디터가 실루엣과 소재까지 예측한다.\n\n컬러 전환이 곧 컨셉의 전환이다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #AI_Fashion",
+      "text": "{artist}의 이번 컴백, 컬러 팔레트가 완전히 바뀌었다. {emoji}\n이전 컨셉과 정반대. 이 전환의 핵심은 실루엣에 있다.\n\n컨셉이 바뀌면 실루엣이 바뀐다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #AI_Fashion",
       "category": "comeback_lookbook"
     },
     {
-      "text": "{artist} 스타일의 핵심은 레이어링 구조에 있다. {emoji}\n오버사이즈 아우터 위에 벨트 하나로 실루엣을 잡는다.\n\n단순한 착장이 아닌, 설계된 스타일링.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #FashionAI",
+      "text": "{artist} 화보가 공개됐다. {emoji}\n팬들이 가장 많이 저장한 컷의 핵심은 레이어링 구조.\n오버사이즈 아우터 위에 벨트 하나로 전체 실루엣이 달라진다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #FashionAI",
       "category": "style_editorial"
     },
     {
-      "text": "블랙 베이스에 포인트 컬러 하나. {artist} 에스테틱의 공식이다. {emoji}\nAI 가상 모델로 재해석한 Vibe-Alike 룩.\n\n하나의 컬러가 전체 무드를 결정한다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #VibeAlike",
+      "text": "{artist} 에스테틱을 AI 가상 모델로 재해석했다. {emoji}\n블랙 베이스에 포인트 컬러 하나. 이것이 {artist}다운 무드의 공식.\n\n분위기는 닮되, 복제하지 않는다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #VibeAlike",
       "category": "vibe_alike"
     },
     {
-      "text": "이번 무대에서 {artist}는 3가지 소재를 한 룩에 담았다. {emoji}\n메탈릭, 시스루, 새틴. 조명 아래 각각 다른 질감이 드러난다.\n\n소재의 선택이 무대의 완성도를 만든다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #StageFashion",
+      "text": "{artist} 이번 무대에서 3가지 소재를 한 룩에 담았다. {emoji}\n메탈릭, 시스루, 새틴. 조명 아래 각각 다른 질감이 무대를 완성한다.\n\n퍼포먼스와 패션이 만나는 지점.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #StageFashion",
       "category": "stage_look"
     }
   ],
   "fashion_report": [
     {
-      "text": "이번 주 K-POP 무대에서 오버사이즈 블레이저 착용률이 40%를 넘었다. {emoji}\n{artist}를 포함한 4팀이 같은 실루엣을 선택했다.\n\nAI가 분석한 다음 주 트렌드 키워드: 구조적 숄더라인.\n\n👉 my-style.ai\n\n#mystyleKPOP #KpopFashion #TrendReport",
+      "text": "이번 주 K-POP 무대 키워드: 오버사이즈 블레이저. {emoji}\n{artist} 포함 4팀이 같은 실루엣을 선택했다.\n\n무대 위 선택이 트렌드가 되는 순간.\n\n👉 my-style.ai\n\n#mystyleKPOP #KpopFashion #TrendReport",
       "category": "weekly_trend"
     },
     {
-      "text": "{artist}의 공항패션과 무대의상은 정반대다. {emoji}\n무대에선 글리터와 시스루, 공항에선 미니멀 오버핏.\n\n이 간극이 오히려 스타일 정체성을 완성한다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #AirportFashion",
+      "text": "{artist}의 공항패션과 무대의상은 정반대다. {emoji}\n무대에선 글리터, 공항에선 미니멀.\n이 간극이 스타일 정체성을 만든다.\n\n여러분은 어떤 쪽이 더 {artist}답다고 생각하세요? 👇\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #AirportFashion",
       "category": "airport_fashion"
     },
     {
-      "text": "{artist} MV 속 의상 체인지는 총 5회. {emoji}\n각 룩마다 컬러 팔레트가 다르다. 의상이 서사를 전달하는 장치다.\n\nAI가 뽑은 핵심 스타일링 키워드 3개를 공개한다.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #MVFashion",
+      "text": "{artist} MV 속 의상 체인지 총 5회. {emoji}\n각 룩마다 컬러가 다르다. 의상이 서사를 전달하는 장치.\n\nMV에서 가장 인상적이었던 룩은? 👇\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #MVFashion",
       "category": "mv_analysis"
     }
   ],
   "open_talk": [
     {
-      "text": "{artist} 팬 여러분, 질문 하나. {emoji}\n무대의상 vs 사복, 어느 쪽이 더 {artist}다운 스타일인가요?\n\n댓글로 근거와 함께 알려주세요 👇\n\n#mystyleKPOP #{artist_tag} #KpopStyle",
+      "text": "{artist} 팬 여러분, 질문 하나. {emoji}\n이번 활동에서 가장 기억에 남는 룩은 어떤 무대인가요?\n\n어떤 포인트 때문인지 댓글로 알려주세요 👇\n\n#mystyleKPOP #{artist_tag} #KpopStyle",
       "category": "fan_discussion"
     },
     {
-      "text": "AI가 만든 K-POP Vibe-Alike 화보. {emoji}\n실제 사진이 아닌 AI 가상 모델 에디토리얼입니다.\n\n이런 방식의 패션 콘텐츠, 어떻게 생각하세요?\n\n👉 my-style.ai에서 직접 만들어보기\n\n#mystyleKPOP #AI_Art #KpopFashion",
+      "text": "{artist} 에스테틱을 AI로 재해석한 Vibe-Alike 화보. {emoji}\n실제 사진이 아닌 AI 가상 모델 에디토리얼입니다.\n\n이런 방식의 K-POP 패션 콘텐츠, 어떻게 생각하세요?\n\n👉 my-style.ai에서 직접 만들어보기\n\n#mystyleKPOP #AI_Art #KpopFashion",
       "category": "opinion_poll"
     },
     {
-      "text": "{artist}에게 가장 어울리는 패션 키워드는? {emoji}\n\n1️⃣ 구조적 미니멀리즘\n2️⃣ 다크 아방가르드\n3️⃣ 로맨틱 페미닌\n4️⃣ 스트릿 하이엔드\n\n투표하고 이유도 남겨주세요 👇\n\n#mystyleKPOP #{artist_tag} #StyleVote",
+      "text": "{artist}에게 가장 어울리는 다음 컨셉은? {emoji}\n\n1️⃣ 미니멀 시크\n2️⃣ 다크 아방가르드\n3️⃣ 로맨틱 드림\n4️⃣ 스트릿 하이엔드\n\n투표하고 이유도 남겨주세요 👇\n\n#mystyleKPOP #{artist_tag} #StyleVote",
       "category": "style_vote"
     }
   ],
   "cardnews": {
     "trend_top5": {
-      "title": "이번 주 K-POP 패션 키워드 TOP 5",
+      "title": "이번 주 K-POP 무대 패션 키워드 TOP 5",
       "subtitle": "무대 위 선택이 트렌드가 되는 순간",
-      "caption": "이번 주 K-POP 무대에서 가장 많이 등장한 패션 키워드 5개. {emoji}\n숫자로 보는 스타일 트렌드.\n\n각 키워드가 왜 선택되었는지, 구조를 분석한다.\n\n👉 my-style.ai\n\n#mystyleKPOP #KpopFashion #TrendReport",
+      "caption": "이번 주 K-POP 무대에서 가장 많이 등장한 패션 키워드 5개. {emoji}\n어떤 아티스트가 어떤 선택을 했는지 분석한다.\n\n👉 my-style.ai\n\n#mystyleKPOP #KpopFashion #TrendReport",
       "items": [
-        { "title": "오버사이즈 블레이저", "description": "파워 숄더 실루엣. 어깨 라인을 2cm 이상 확장한 구조적 재킷이 4팀 이상 무대에 등장했다." },
-        { "title": "Y2K 크롭 & 로우라이즈", "description": "2000년대 감성의 귀환. 크롭탑과 로우라이즈 팬츠 조합이 무대와 공항 모두에서 포착된다." },
-        { "title": "시스루 레이어링", "description": "메쉬와 오간자 소재의 레이어링. 조명 아래 투명도가 달라지며 무대 위 비주얼 깊이를 만든다." },
-        { "title": "네온 컬러 포인트", "description": "블랙 베이스에 네온 그린 또는 핑크 한 가지만 배치. 단일 포인트 전략이 시각적 집중도를 높인다." },
-        { "title": "미니멀 테일러링", "description": "군더더기 없는 슬림핏 셋업. 공항패션에서도 실루엣이 무너지지 않는 커팅이 핵심이다." }
+        { "title": "오버사이즈 블레이저", "description": "파워 숄더 실루엣. 이번 주 4팀 이상의 무대에 등장. 컴백 컨셉과 무관하게 선택되는 만능 아이템." },
+        { "title": "Y2K 크롭 & 로우라이즈", "description": "2000년대 감성의 귀환. 무대와 공항 모두에서 포착된다. 특히 걸그룹 컴백에서 자주 등장." },
+        { "title": "시스루 레이어링", "description": "메쉬와 오간자 소재. 무대 조명 아래 투명도가 달라지며 퍼포먼스에 시각적 깊이를 더한다." },
+        { "title": "네온 컬러 포인트", "description": "블랙 베이스에 네온 한 가지. 다크 컨셉 컴백에서 자주 보이는 단일 포인트 전략." },
+        { "title": "미니멀 테일러링", "description": "군더더기 없는 슬림핏 셋업. 팬싸인회와 공항에서도 실루엣이 유지되는 커팅." }
       ]
     },
     "lookbook": {
       "title": "{artist} 컴백 룩 해부",
-      "subtitle": "컬러부터 실루엣까지, 스타일의 구조를 읽는다",
-      "caption": "{artist} 컴백 스타일링의 구조를 분석한다. {emoji}\n컬러 팔레트, 실루엣, 레이어링, 디테일.\n\n매 컴백마다 달라지는 선택의 이유.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #ComebackLook",
+      "subtitle": "이번 컨셉의 스타일 구조를 읽는다",
+      "caption": "{artist} 컴백 스타일링을 분석한다. {emoji}\n컨셉과 패션이 어떻게 연결되는지.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #ComebackLook",
       "items": [
-        { "title": "컬러 팔레트", "description": "모노크롬 베이스에 포인트 컬러 하나. {artist}의 컬러 선택은 앨범 컨셉과 직결된다. 이번 팔레트가 전달하는 무드를 읽는다." },
-        { "title": "핵심 실루엣", "description": "오버사이즈 아우터와 슬림 보텀의 대비. 상하 볼륨 밸런스가 {artist} 스타일링의 기본 구조다." },
-        { "title": "레이어링 구조", "description": "무대 룩을 일상으로 옮기면 어떻게 될까. 아우터-미드-이너 3단 레이어의 비율을 분석한다." },
-        { "title": "디테일 & 액세서리", "description": "청키 주얼리, 체인 벨트, 스테이트먼트 이어링. {artist} 룩의 완성도는 디테일에서 갈린다." }
+        { "title": "컬러 팔레트", "description": "{artist}의 컬러 선택은 앨범 컨셉과 직결된다. 이번 팔레트가 전하는 무드와 이전 활동과의 변화를 읽는다." },
+        { "title": "핵심 실루엣", "description": "상하 볼륨 밸런스가 {artist} 스타일링의 기본 구조. 이번 컴백에서 어떻게 달라졌는지." },
+        { "title": "무대 vs 일상", "description": "무대 룩을 일상으로 옮기면 어떻게 될까. 팬이 따라할 수 있는 핵심 요소를 추출한다." },
+        { "title": "디테일 & 포인트", "description": "{artist} 룩의 완성도는 디테일에서 갈린다. 팬들이 가장 많이 주목한 아이템을 분석." }
       ]
     },
     "style_tip": {
       "title": "{artist} 무드, 일상에서 입는 법",
-      "subtitle": "무대 위 스타일을 현실로 가져오는 3가지 포인트",
-      "caption": "{artist} 스타일을 일상에 적용하는 구체적 방법. {emoji}\n무대 위 룩을 그대로 따라하는 게 아니다.\n\n핵심 요소만 추출해서 자기 것으로 만드는 법.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #StyleTip",
+      "subtitle": "아이돌 스타일을 내 것으로 만드는 3가지 포인트",
+      "caption": "{artist} 스타일을 일상에 적용하는 방법. {emoji}\n무대 위 룩을 그대로 따라하는 게 아니다.\n핵심만 가져와서 자기 것으로.\n\n👉 my-style.ai\n\n#mystyleKPOP #{artist_tag} #StyleTip",
       "items": [
-        { "title": "실루엣 가져오기", "description": "전체 룩이 아닌 실루엣만 참고한다. {artist}의 오버핏 상의+슬림 하의 비율을 자신의 체형에 맞게 조정하는 것이 첫 번째 단계." },
-        { "title": "포인트 아이템 하나", "description": "스테이트먼트 액세서리 하나가 룩을 완성한다. {artist} 스타일의 핵심은 전체를 바꾸는 것이 아니라 하나를 더하는 것." },
-        { "title": "컬러 전략 적용", "description": "{artist}처럼 컬러를 쓰는 법. 톤온톤 안에서 한 가지 대비 컬러를 배치하면 일상복도 에디토리얼이 된다." }
+        { "title": "실루엣만 가져오기", "description": "전체 룩이 아닌 실루엣만 참고한다. {artist}의 상하 비율을 자신의 체형에 맞게 조정하는 것이 첫 단계." },
+        { "title": "포인트 아이템 하나", "description": "스테이트먼트 아이템 하나가 룩을 완성한다. {artist} 스타일의 핵심은 전체를 바꾸는 것이 아니라 하나를 더하는 것." },
+        { "title": "컬러 전략", "description": "{artist}처럼 컬러를 쓰는 법. 베이스 톤에 포인트 하나를 배치하면 일상복도 달라진다." }
       ]
     }
   }
