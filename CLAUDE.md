@@ -29,16 +29,20 @@ mystyleKPOP SNS 자동화 봇. X(Twitter)와 Instagram에 AI 패션 K-POP 매거
 ## Architecture
 
 ```
-src/bot.js        # 핵심 SNS 게시 로직 (postToSNS 함수)
-scripts/test.js   # 통합 테스트
-docs/             # 기획서, 전략 문서
-guidelines/       # 법률, IP, K-POP 전문가 가이드라인
+src/bot.js                # 핵심 SNS 게시 로직 (postToSNS 함수)
+src/aiBrainstorm.js       # Hybrid LLM 파이프라인 (Gemini→Claude 2단계)
+src/editorialEvolution.js # 에디토리얼 방향 자동 진화 (4단계 시간 스케일)
+src/scheduler.js          # cron 스케줄러 (SNS 초안 + 에디토리얼 진화)
+src/telegram.js           # 텔레그램 봇 UI/핸들러
+scripts/test.js           # 통합 테스트
+docs/                     # 기획서, 전략 문서
+guidelines/               # 법률, IP, K-POP 전문가 가이드라인
 ```
 
 - **Runtime:** Node.js (ES Modules, `"type": "module"`)
-- **APIs:** Twitter API v2 (`twitter-api-v2`), Instagram Graph API (REST), Anthropic API, Gemini API
-- **Infra:** Firebase Storage (이미지 호스팅), dotenv (환경변수)
-- **Hybrid AI:** Gemini (Drafting) + Claude (Polishing) 파이프라인
+- **AI:** Gemini 2.5 Flash (`@google/genai` - 초안/분석), Claude Sonnet (`@anthropic-ai/sdk` - 폴리싱)
+- **APIs:** Twitter API v2 (`twitter-api-v2`), Instagram Graph API (REST)
+- **Infra:** Firebase Storage (이미지 호스팅), Firestore (에디토리얼 방향/트렌드), dotenv (환경변수)
 
 ## Coding Conventions
 
