@@ -1,6 +1,6 @@
 # SNS 자동화 실행 계획 (SNS Automation Plan)
 
-X(Twitter)와 TikTok 게시를 자동화하여 마케팅 효율을 극대화하기 위한 계획입니다.
+X(Twitter)와 Instagram 게시를 자동화하여 마케팅 효율을 극대화하기 위한 계획입니다.
 
 ## 1. 플랫폼별 자동화 기술 분석
 
@@ -44,7 +44,7 @@ X(Twitter)와 TikTok 게시를 자동화하여 마케팅 효율을 극대화하�
 
 ## 2. API Implementation Details (Node.js)
 
-`src/app/api/sns/post/route.ts` 에서 다음 로직을 통합 관리합니다.
+`src/bot.js` 에서 다음 로직을 통합 관리합니다.
 
 ### A. X (Twitter) Logic
 *   `twitter-api-v2`를 사용하여 이미지 업로드 및 트윗 게시.
