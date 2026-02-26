@@ -251,6 +251,47 @@ ${externalPrompt ? `\n${externalPrompt}\n` : ''}
 }
 
 /**
+ * Gemini Flash로 사용자 피드백을 반영하여 초안을 수정한다. (저비용)
+ *
+ * @param {object} draft - 원본 초안 { text, platform, category, type, artist }
+ * @param {string} userFeedback - 사용자가 보낸 수정 요청 텍스트
+ * @returns {string} 수정된 게시물 텍스트
+ */
+export async function refineDraftWithAI(draft, userFeedback) {
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+    }
+
+    const platformLabel = draft.platform === 'instagram' ? 'Instagram' : 'X(Twitter)';
+
+    const prompt = `당신은 'mystyleKPOP' AI 패션 K-POP 매거진의 에디터 어시스턴트입니다.
+아래는 현재 ${platformLabel} SNS 게시물 초안입니다. 관리자의 피드백을 반영하여 수정해주세요.
+
+## 현재 초안
+${draft.text}
+
+## 관리자 피드백
+${userFeedback}
+
+## 수정 규칙
+1. 관리자의 피드백을 최우선으로 반영하세요.
+2. 기존 초안의 톤, 구조, 해시태그 스타일을 유지하면서 수정하세요.
+3. K-POP 비율 50% 이상 유지.
+4. CTA "👉 my-style.ai" 유지.
+5. #mystyleKPOP 해시태그 유지.
+6. Bot Disclosure 문구 넣지 마세요 (시스템 자동 삽입).
+7. 출력은 수정된 SNS 본문 텍스트만. 설명/주석 없이 바로 게시 가능한 텍스트만 출력.`;
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+
+    return response.text.trim();
+}
+
+/**
  * 사용 가능한 포맷 키 목록을 반환한다.
  */
 export function getFormatKeys() {

@@ -134,7 +134,8 @@ export function setupTTLCleanup() {
         }
         // editMode 중 대응하는 draft가 없는 항목 정리
         for (const [chatId] of editMode) {
-            const msgId = editMode.get(chatId);
+            const entry = editMode.get(chatId);
+            const msgId = typeof entry === 'object' ? entry.messageId : entry;
             if (!pendingDrafts.has(msgId)) {
                 editMode.delete(chatId);
             }

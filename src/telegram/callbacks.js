@@ -2,6 +2,7 @@ import { postToSNS } from '../bot.js';
 import { getRandomDraft } from '../templates.js';
 import { generateImageForDraft } from '../imageGen.js';
 import { getRandomFormatDraft } from '../formatManager.js';
+import { refineDraftWithAI } from '../contentGenerator.js';
 import { getFormatName, getTodaySchedule, getDayName } from '../contentCalendar.js';
 import { db } from '../firebase.js';
 
@@ -93,8 +94,14 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
 
             case 'edit':
                 await bot.answerCallbackQuery(query.id, { text: '수정 모드' });
-                editMode.set(chatId, messageId);
+                editMode.set(chatId, { messageId, mode: 'edit' });
                 await bot.sendMessage(chatId, '✏️ 수정할 텍스트를 보내주세요:');
+                break;
+
+            case 'ai_refine':
+                await bot.answerCallbackQuery(query.id, { text: 'AI 수정 모드' });
+                editMode.set(chatId, { messageId, mode: 'ai_refine' });
+                await bot.sendMessage(chatId, '💬 *AI 수정 모드*\n\n수정 방향을 자유롭게 알려주세요.\n\n예시:\n• "좀 더 짧게"\n• "해시태그 더 추가해줘"\n• "톤을 좀 더 캐주얼하게"\n• "뉴진스 하니 언급 추가"\n• "CTA를 더 강하게"', { parse_mode: 'Markdown' });
                 break;
 
             case 'regenerate_x':
@@ -125,7 +132,9 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
         if (!msg.text || msg.text.startsWith('/')) return;
         if (!editMode.has(chatId)) return;
 
-        const originalMessageId = editMode.get(chatId);
+        const entry = editMode.get(chatId);
+        const originalMessageId = typeof entry === 'object' ? entry.messageId : entry;
+        const mode = typeof entry === 'object' ? entry.mode : 'edit';
         const originalDraft = pendingDrafts.get(originalMessageId);
         editMode.delete(chatId);
 
@@ -134,18 +143,45 @@ export function registerCallbacks(bot, adminChatId, commandHandlers) {
             return;
         }
 
-        await clearButtons(bot, chatId, originalMessageId);
-        pendingDrafts.delete(originalMessageId);
+        if (mode === 'ai_refine') {
+            // AI 수정 모드: Gemini Flash로 피드백 반영
+            await bot.sendMessage(chatId, '🤖 AI가 피드백을 반영하여 수정 중...');
+            try {
+                const refinedText = await refineDraftWithAI(originalDraft, msg.text);
+                await clearButtons(bot, chatId, originalMessageId);
+                pendingDrafts.delete(originalMessageId);
 
-        const editedDraft = {
-            text: msg.text,
-            category: originalDraft.category,
-            type: originalDraft.type,
-            platform: originalDraft.platform,
-            imageUrl: originalDraft.imageUrl,
-            artist: originalDraft.artist,
-        };
-        await sendDraftPreview(bot, chatId, editedDraft);
+                const refinedDraft = {
+                    text: refinedText,
+                    category: originalDraft.category,
+                    type: originalDraft.type,
+                    platform: originalDraft.platform,
+                    imageUrl: originalDraft.imageUrl,
+                    artist: originalDraft.artist,
+                    imageDirection: originalDraft.imageDirection,
+                };
+                await sendDraftPreview(bot, chatId, refinedDraft, 'AI 수정 ');
+            } catch (err) {
+                console.error('[Callbacks] AI 수정 실패:', err.message);
+                await bot.sendMessage(chatId, `❌ AI 수정 실패: ${err.message}\n\n원본 초안이 유지됩니다. 다시 시도하거나 직접 수정해주세요.`);
+                // 실패 시 editMode를 다시 설정하지 않음 — 원본 초안은 유지
+            }
+        } else {
+            // 일반 수정 모드: 사용자 텍스트로 직접 교체
+            await clearButtons(bot, chatId, originalMessageId);
+            pendingDrafts.delete(originalMessageId);
+
+            const editedDraft = {
+                text: msg.text,
+                category: originalDraft.category,
+                type: originalDraft.type,
+                platform: originalDraft.platform,
+                imageUrl: originalDraft.imageUrl,
+                artist: originalDraft.artist,
+                imageDirection: originalDraft.imageDirection,
+            };
+            await sendDraftPreview(bot, chatId, editedDraft);
+        }
     });
 }
 

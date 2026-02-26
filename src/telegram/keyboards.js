@@ -8,7 +8,10 @@ export const X_DRAFT_KEYBOARD = {
             { text: '✏️ 수정', callback_data: 'edit' },
         ],
         [
+            { text: '💬 AI 수정', callback_data: 'ai_refine' },
             { text: '🔄 다시 생성', callback_data: 'regenerate_x' },
+        ],
+        [
             { text: '❌ 거부', callback_data: 'reject' },
         ],
     ],
@@ -22,10 +25,11 @@ export const IG_DRAFT_KEYBOARD = {
             { text: '✏️ 수정', callback_data: 'edit' },
         ],
         [
+            { text: '💬 AI 수정', callback_data: 'ai_refine' },
             { text: '🖼️ 이미지 재생성', callback_data: 'regenerate_image' },
-            { text: '🔄 다시 생성', callback_data: 'regenerate_ig' },
         ],
         [
+            { text: '🔄 다시 생성', callback_data: 'regenerate_ig' },
             { text: '❌ 거부', callback_data: 'reject' },
         ],
     ],
@@ -41,10 +45,13 @@ export const CROSS_POST_KEYBOARD = {
         ],
         [
             { text: '✏️ 수정', callback_data: 'edit' },
-            { text: '🔄 다시 생성', callback_data: 'regenerate_x' },
+            { text: '💬 AI 수정', callback_data: 'ai_refine' },
         ],
         [
+            { text: '🔄 다시 생성', callback_data: 'regenerate_x' },
             { text: '🖼️ 이미지 재생성', callback_data: 'regenerate_image' },
+        ],
+        [
             { text: '❌ 거부', callback_data: 'reject' },
         ],
     ],
