@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 import { db } from './firebase.js';
 
 const COLLECTION = 'bot_settings';
@@ -10,8 +11,59 @@ const DOC_IDS = {
 };
 
 /**
- * Gemini로 에디토리얼 방향을 분석하고 Firestore에 저장하는 공통 함수.
- * 내부 분석용이므로 Gemini 2.5 Flash만 사용 (저비용).
+ * Claude로 Gemini 분석 초안을 정제하여 최종 에디토리얼 지시문으로 다듬는다.
+ * ANTHROPIC_API_KEY 미설정 시 Gemini 결과 그대로 반환 (fallback).
+ */
+async function refineWithClaude(level, geminiResult, previousDirective) {
+    if (!process.env.ANTHROPIC_API_KEY) return geminiResult;
+
+    const refinePrompt = `당신은 mystyleKPOP AI 패션 K-POP 매거진의 편집장입니다.
+아래는 AI 분석 엔진이 생성한 ${level} 에디토리얼 방향 초안입니다. 이를 검토하고 더 날카롭게 다듬어주세요.
+
+## 초안
+- directive: ${geminiResult.directive}
+- analysis: ${geminiResult.analysis}
+
+## 이전 지시문
+${previousDirective || '(없음)'}
+
+## 정제 규칙
+1. **K-POP 비율 최소 50% 하한선 (절대 규칙)**: K-POP 콘텐츠 비중은 50% 미만으로 절대 내려가선 안 된다. 패션이 K-POP을 넘어서도 안 된다.
+2. 카테고리 비율 변경은 최대 ±15%p까지만 (보수적 변경). 단, K-POP이 50% 미만이 되는 변경은 금지.
+3. directive는 100자 이내, 실행 가능하고 구체적인 자연어.
+4. "~인 것 같다", "대박", "레전드" 등 금지 표현 절대 사용 금지.
+5. 초안의 방향성은 유지하되, 표현을 더 정확하고 에디토리얼답게 다듬으라.
+
+JSON 형식으로만 응답하세요:
+{"directive": "100자 이내 에디토리얼 지시문", "analysis": "분석 요약 200자 이내"}`;
+
+    try {
+        const client = new Anthropic();
+        const response = await client.messages.create({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 512,
+            messages: [{ role: 'user', content: refinePrompt }],
+        });
+
+        const text = response.content[0].text.trim();
+        const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+        if (!jsonMatch) {
+            console.warn(`[Editorial] ${level} Claude 응답에서 JSON 추출 실패, Gemini 결과 사용.`);
+            return geminiResult;
+        }
+        console.log(`[Editorial] ${level} Claude 정제 완료.`);
+        return JSON.parse(jsonMatch[1]);
+    } catch (err) {
+        console.error(`[Editorial] ${level} Claude 정제 실패, Gemini 결과 사용:`, err.message);
+        return geminiResult;
+    }
+}
+
+/**
+ * Gemini→Claude 2단계로 에디토리얼 방향을 분석/정제하고 Firestore에 저장하는 공통 함수.
+ * Step 1 (Gemini 2.5 Flash): 데이터 분석 + 초안 지시문 생성
+ * Step 2 (Claude Sonnet): 초안을 에디토리얼 톤으로 정제
+ * Fallback: ANTHROPIC_API_KEY 미설정 시 Gemini 결과 그대로 저장
  */
 async function runEditorialAnalysis(level, prompt) {
     if (!db) {
@@ -50,14 +102,15 @@ async function runEditorialAnalysis(level, prompt) {
 ${previousDirective || '(없음)'}
 
 ## 핵심 규칙
-1. K-POP 50% + Fashion 50% 균형 반드시 유지.
-2. 카테고리 비율 변경은 최대 ±15%p까지만 허용 (보수적 변경).
+1. **K-POP 비율 최소 50% 하한선 (절대 규칙)**: K-POP 콘텐츠 비중은 50% 미만으로 절대 내려가선 안 된다. 패션이 50%를 초과해도 안 된다.
+2. 카테고리 비율 변경은 최대 ±15%p까지만 허용 (보수적 변경). 단, K-POP이 50% 미만이 되는 변경은 금지.
 3. 지시문은 100자 이내 자연어로 작성.
 4. "~인 것 같다", "대박", "레전드" 등 금지 표현 사용 금지.
 
 JSON 형식으로만 응답하세요:
 {"directive": "100자 이내 에디토리얼 지시문", "analysis": "분석 요약 200자 이내"}`;
 
+        // Step 1: Gemini 분석 초안
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -65,23 +118,25 @@ JSON 형식으로만 응답하세요:
         });
 
         const text = response.text.trim();
-        // JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
         const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
         if (!jsonMatch) {
             console.error(`[Editorial] ${level} Gemini 응답에서 JSON을 추출할 수 없습니다.`);
             return;
         }
 
-        const parsed = JSON.parse(jsonMatch[1]);
+        const geminiResult = JSON.parse(jsonMatch[1]);
+
+        // Step 2: Claude 정제
+        const finalResult = await refineWithClaude(level, geminiResult, previousDirective);
 
         await db.collection(COLLECTION).doc(docId).set({
             updatedAt: new Date(),
-            directive: parsed.directive || '',
-            analysis: parsed.analysis || '',
+            directive: finalResult.directive || '',
+            analysis: finalResult.analysis || '',
             previousDirective,
         });
 
-        console.log(`[Editorial] ${level} 에디토리얼 방향 업데이트 완료: ${parsed.directive}`);
+        console.log(`[Editorial] ${level} 에디토리얼 방향 업데이트 완료: ${finalResult.directive}`);
     } catch (err) {
         console.error(`[Editorial] ${level} 분석 실패:`, err.message);
     }
