@@ -11,7 +11,7 @@ X(Twitter)와 Instagram에 이미지를 자동으로 게시할 수 있는 통합
 
 ### 하이브리드 AI 콘텐츠 생성 (Hybrid LLM Pipeline)
 *   **Gemini 2.5 Flash (Drafting):** 전략서(`docs/`) + 트렌드 데이터 + 에디토리얼 방향을 분석하여 기획 Brief 생성.
-*   **Claude Sonnet 4.5 (Polishing):** Brief를 K-POP 50:Fashion 50 균형, 브랜드 톤, 금지어 규칙을 적용하여 최종 SNS 본문으로 다듬기.
+*   **Claude Sonnet 4.5 (Polishing):** Brief를 K-POP ≥50% 하한선 규칙, 브랜드 톤, 금지어 규칙을 적용하여 최종 SNS 본문으로 다듬기.
 *   **Fallback:** `ANTHROPIC_API_KEY` 미설정 시 Gemini 결과 그대로 사용 (기존 동작 유지).
 *   **이점:** 월간 운영 비용을 대폭 절감하면서도 최상급 콘텐츠 품질 유지.
 

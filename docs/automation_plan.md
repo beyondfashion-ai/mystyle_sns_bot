@@ -27,7 +27,7 @@ X(Twitter)와 TikTok 게시를 자동화하여 마케팅 효율을 극대화하�
 *   **방식:** Gemini 2.5 Flash (기획/분석) + Claude Sonnet 4.5 (편집/폴리싱)
 *   **전략:**
     *   **Phase 1 (Gemini):** 방대한 전략서(`docs/`) + 트렌드 데이터 + 에디토리얼 방향을 저가형 모델로 분석하여 핵심 기획 브리프 생성.
-    *   **Phase 2 (Claude):** 브리프를 K-POP 50:Fashion 50 균형, 브랜드 톤, 금지어 규칙을 적용하여 전문 에디토리얼 톤으로 최종 다듬기 (API 기반).
+    *   **Phase 2 (Claude):** 브리프를 K-POP ≥50% 하한선 규칙, 브랜드 톤, 금지어 규칙을 적용하여 전문 에디토리얼 톤으로 최종 다듬기 (API 기반).
     *   **Fallback:** `ANTHROPIC_API_KEY` 미설정 시 Gemini 결과 그대로 반환 (기존 동작 유지).
 *   **기술 스택:** `@google/genai`, `@anthropic-ai/sdk`
 
@@ -39,7 +39,7 @@ X(Twitter)와 TikTok 게시를 자동화하여 마케팅 효율을 극대화하�
     *   **주간 (일요일 02:00 KST):** 주간 성과 분석 → 카테고리 비율 조정 (±15%p 이내).
     *   **월간 (1일 03:00 KST):** 월간 전략 재평가.
     *   **분기 (1,4,7,10월 1일 04:00 KST):** 분기 에디토리얼 비전 재설정.
-*   **제약:** K-POP 50:Fashion 50 균형 강제, 카테고리 비율 변경 최대 ±15%p 제한.
+*   **제약:** K-POP 비율 최소 50% 하한선 (절대 규칙), 카테고리 비율 변경 최대 ±15%p 제한.
 *   **Firestore 저장:** `bot_settings/editorial_daily|weekly|monthly|quarterly` 문서.
 
 ## 2. API Implementation Details (Node.js)
