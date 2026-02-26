@@ -225,22 +225,50 @@ pending_drafts/{messageId} = {
 | **P0** | 1-1. Hybrid LLM 초안 파이프라인 | 콘텐츠 품질 대폭 향상 | 핵심 가치. 현재 템플릿 치환은 전략서 품질에 미달 |
 | **P0** | 1-2. 콘텐츠 캘린더 연동 | 콘텐츠 다양성 확보 | 10포맷 편성표가 이미 기획되어 있으나 미사용 |
 | **P1** | 1-3. 이미지 프롬프트 강화 | 비주얼 품질 향상 | LLM 텍스트와 이미지 간 맥락 일치 |
-| **P1** | 2-1. 모듈 분리 | 유지보수성 | 기능 추가 전에 구조 정리 |
-| **P1** | 3-1. 메인 메뉴 개선 | UX | 핵심 기능에 대한 접근성 |
-| **P2** | 2-2. Firestore 상태 관리 | 안정성 | 재시작 시 초안 유실 방지 |
-| **P2** | 2-3. 크로스포스팅 | 운영 효율 | 동일 콘텐츠 멀티 플랫폼 |
+| **P1** | 2-1. 모듈 분리 | 유지보수성 | 기능 추가 전에 구조 정리 | ✅ 완료 |
+| **P1** | 3-1. 메인 메뉴 개선 | UX | 핵심 기능에 대한 접근성 | ✅ 완료 |
+| **P2** | 2-2. Firestore 상태 관리 | 안정성 | 재시작 시 초안 유실 방지 | ✅ 완료 |
+| **P2** | 2-3. 크로스포스팅 | 운영 효율 | 동일 콘텐츠 멀티 플랫폼 | ✅ 완료 |
 | **P2** | 3-2. 스케줄러 관리 | 운영 편의 | 텔레그램에서 제어 |
 | **P3** | 3-3. 초안 히스토리 | 분석/참고 | Firestore 전환 후 가능 |
 | **P3** | 3-4. 에러 알림 강화 | 모니터링 | 프로덕션 안정성 |
 
 ---
 
-## 즉시 실행 항목 (이번 세션)
+## 구현 완료 이력
 
-위 기획 중 **P0 항목 2건**을 이번 세션에서 구현합니다:
+### Session 1 — P0 항목 (Phase 1: 콘텐츠 품질)
 
 1. **`src/contentGenerator.js`** — Hybrid LLM 기반 SNS 콘텐츠 생성 모듈
 2. **`src/contentCalendar.js`** — 요일×시간대별 포맷 매핑 + 스케줄러 연동
 3. **`src/telegram.js` 수정** — `/dx`, `/di`가 contentGenerator를 통해 LLM 생성
 4. **`src/scheduler.js` 수정** — contentCalendar 기반 포맷 선택
 5. **메인 메뉴 개선** — `/dx`, `/di` 버튼 추가
+
+### Session 2 — P1~P2 항목 (Phase 2: 아키텍처 개선)
+
+1. **2-1. `telegram.js` 모듈 분리** — 1030줄 모노리스를 7개 모듈로 분해
+   ```
+   src/telegram/
+     index.js          # createTelegramBot() 진입점
+     state.js          # 상태 관리 + Firestore write-through + TTL 정리
+     keyboards.js      # 인라인 키보드 정의 + 크로스포스팅 키보드
+     helpers.js        # 유틸 (clearButtons, sendDraftPreview, isAdmin)
+     commands.js       # 명령어 핸들러 + /help 추가
+     callbacks.js      # 콜백 핸들러 + approve_both (크로스포스팅)
+     cardnews.js       # 카드뉴스 전용 핸들러
+     scheduled.js      # 스케줄러 export 함수
+   ```
+   - `src/telegram.js`는 re-export 브릿지로 전환 (하위 호환성 유지)
+
+2. **2-2. Firestore 상태 관리 전환**
+   - `telegram_drafts`, `telegram_cardnews` 컬렉션으로 write-through 캐시
+   - 봇 재시작 시 `restoreStateFromFirestore()`로 대기 초안 복구
+   - `updateDraftStatus()`로 승인/거부 이력 Firestore 기록 (히스토리 준비)
+
+3. **2-3. 크로스포스팅 워크플로**
+   - `CROSS_POST_KEYBOARD`: 이미지 있는 초안에 "✅ X+IG 동시" 버튼 표시
+   - `getDraftKeyboard(draft)`: 이미지 유무에 따라 키보드 자동 선택
+   - `handleApproveBoth()`: `postToSNS({ platforms: ['x', 'instagram'] })` 호출
+
+4. **3-1. /help 명령어 추가** — 전체 명령어 가이드
