@@ -86,11 +86,19 @@ function checkXRateLimit(userId = "default") {
  * Validates if a URL is publicly accessible
  */
 async function isPubliclyAccessible(url) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-        const res = await fetch(url, { method: "HEAD" });
+        // HEAD 먼저 시도, 실패하면 GET fallback
+        let res = await fetch(url, { method: "HEAD", signal: controller.signal });
+        if (!res.ok && res.status === 405) {
+            res = await fetch(url, { method: "GET", signal: controller.signal });
+        }
         return res.ok;
     } catch (err) {
         return false;
+    } finally {
+        clearTimeout(timeout);
     }
 }
 

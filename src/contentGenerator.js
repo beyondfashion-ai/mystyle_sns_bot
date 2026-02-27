@@ -6,6 +6,7 @@ import { dirname, join } from 'path';
 import { getEditorialDirectionPrompt } from './editorialEvolution.js';
 import { getTrendWeightsPrompt } from './trendAnalyzer.js';
 import { getExternalTrendPrompt } from './trendScraper.js';
+import { extractJSON } from './utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -146,7 +147,8 @@ ${geminiBrief}`;
             max_tokens: 1024,
             messages: [{ role: 'user', content: polishPrompt }],
         });
-        return response.content[0].text;
+        const polishedText = response.content?.[0]?.text;
+        return polishedText || geminiBrief;
     } catch (err) {
         console.error('[ContentGen] Claude 폴리싱 오류, Gemini 결과 사용:', err.message);
         return geminiBrief;
@@ -220,15 +222,14 @@ ${externalPrompt ? `\n${externalPrompt}\n` : ''}
         });
 
         const rawText = response.text.trim();
-        const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) || rawText.match(/(\{[\s\S]*\})/);
+        const parsed = extractJSON(rawText);
 
         let text, imageDirection;
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[1]);
-            text = parsed.text;
-            imageDirection = parsed.image_direction || null;
+        if (parsed.ok) {
+            text = parsed.data.text;
+            imageDirection = parsed.data.image_direction || null;
         } else {
-            // JSON 파싱 실패 시 전체를 텍스트로 사용
+            console.warn('[ContentGen] JSON 추출 실패, 원문 텍스트 사용:', parsed.error);
             text = rawText;
             imageDirection = null;
         }

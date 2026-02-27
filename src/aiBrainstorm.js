@@ -60,7 +60,8 @@ ${geminiBrief}`;
             max_tokens: 1024,
             messages: [{ role: 'user', content: polishPrompt }],
         });
-        return response.content[0].text;
+        const polishedText = response.content?.[0]?.text;
+        return polishedText || geminiBrief;
     } catch (err) {
         console.error('[Claude] 폴리싱 중 오류 발생, Gemini 결과 사용:', err.message);
         return geminiBrief;

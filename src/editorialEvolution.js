@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from './firebase.js';
+import { extractJSON } from './utils.js';
 
 const COLLECTION = 'bot_settings';
 const DOC_IDS = {
@@ -45,14 +46,18 @@ JSON 형식으로만 응답하세요:
             messages: [{ role: 'user', content: refinePrompt }],
         });
 
-        const text = response.content[0].text.trim();
-        const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
-        if (!jsonMatch) {
-            console.warn(`[Editorial] ${level} Claude 응답에서 JSON 추출 실패, Gemini 결과 사용.`);
+        const text = response.content?.[0]?.text?.trim();
+        if (!text) {
+            console.warn(`[Editorial] ${level} Claude 응답이 비어있음, Gemini 결과 사용.`);
+            return geminiResult;
+        }
+        const result = extractJSON(text);
+        if (!result.ok) {
+            console.warn(`[Editorial] ${level} Claude JSON 추출 실패: ${result.error}, Gemini 결과 사용.`);
             return geminiResult;
         }
         console.log(`[Editorial] ${level} Claude 정제 완료.`);
-        return JSON.parse(jsonMatch[1]);
+        return result.data;
     } catch (err) {
         console.error(`[Editorial] ${level} Claude 정제 실패, Gemini 결과 사용:`, err.message);
         return geminiResult;
@@ -118,13 +123,12 @@ JSON 형식으로만 응답하세요:
         });
 
         const text = response.text.trim();
-        const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
-        if (!jsonMatch) {
-            console.error(`[Editorial] ${level} Gemini 응답에서 JSON을 추출할 수 없습니다.`);
+        const geminiParsed = extractJSON(text);
+        if (!geminiParsed.ok) {
+            console.error(`[Editorial] ${level} Gemini JSON 추출 실패: ${geminiParsed.error}`);
             return;
         }
-
-        const geminiResult = JSON.parse(jsonMatch[1]);
+        const geminiResult = geminiParsed.data;
 
         // Step 2: Claude 정제
         const finalResult = await refineWithClaude(level, geminiResult, previousDirective);
