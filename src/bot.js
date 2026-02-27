@@ -60,10 +60,10 @@ function buildSafeText(text) {
 }
 
 /**
- * Checks and increments rate limit for X posting.
+ * Checks rate limit for X posting without incrementing counters.
  * Returns true if posting is allowed, false if rate limited.
  */
-function checkXRateLimit(userId = "default") {
+function checkXRateLimit(userId = "default", requiredCount = 1) {
     const now = Date.now();
     if (!xPostCount[userId]) {
         xPostCount[userId] = {
@@ -86,16 +86,44 @@ function checkXRateLimit(userId = "default") {
         entry.dailyResetAt = now + 24 * 60 * 60 * 1000;
     }
 
-    if (entry.hourlyCount >= X_HOURLY_LIMIT) {
+    if (entry.hourlyCount + requiredCount > X_HOURLY_LIMIT) {
         return { allowed: false, reason: `Hourly limit reached (${X_HOURLY_LIMIT}/hour)` };
     }
-    if (entry.dailyCount >= X_DAILY_LIMIT) {
+    if (entry.dailyCount + requiredCount > X_DAILY_LIMIT) {
         return { allowed: false, reason: `Daily limit reached (${X_DAILY_LIMIT}/day)` };
     }
 
-    entry.hourlyCount++;
-    entry.dailyCount++;
     return { allowed: true };
+}
+
+/**
+ * Commits X rate limit counters after successful posting.
+ */
+function incrementXRateLimit(userId = "default", count = 1) {
+    const now = Date.now();
+    if (!xPostCount[userId]) {
+        xPostCount[userId] = {
+            hourlyCount: 0,
+            dailyCount: 0,
+            hourlyResetAt: now + 60 * 60 * 1000,
+            dailyResetAt: now + 24 * 60 * 60 * 1000,
+        };
+    }
+
+    const entry = xPostCount[userId];
+
+    // Reset counters if window expired
+    if (now >= entry.hourlyResetAt) {
+        entry.hourlyCount = 0;
+        entry.hourlyResetAt = now + 60 * 60 * 1000;
+    }
+    if (now >= entry.dailyResetAt) {
+        entry.dailyCount = 0;
+        entry.dailyResetAt = now + 24 * 60 * 60 * 1000;
+    }
+
+    entry.hourlyCount += count;
+    entry.dailyCount += count;
 }
 
 /**
@@ -160,8 +188,8 @@ export function getRateLimitStatus(userId = "default") {
             dailyCount: 0,
             hourlyLimit: X_HOURLY_LIMIT,
             dailyLimit: X_DAILY_LIMIT,
-            hourlyResetIn: '60분',
-            dailyResetIn: '24시간',
+            hourlyResetIn: "60m",
+            dailyResetIn: "24h",
         };
     }
 
@@ -175,8 +203,8 @@ export function getRateLimitStatus(userId = "default") {
         dailyCount,
         hourlyLimit: X_HOURLY_LIMIT,
         dailyLimit: X_DAILY_LIMIT,
-        hourlyResetIn: `${Math.ceil(hourlyResetMs / 60000)}분`,
-        dailyResetIn: `${Math.ceil(dailyResetMs / 60000)}분`,
+        hourlyResetIn: `${Math.ceil(hourlyResetMs / 60000)}m`,
+        dailyResetIn: `${Math.ceil(dailyResetMs / 60000)}m`,
     };
 }
 
@@ -215,6 +243,7 @@ export async function postToSNS({ platforms, text, imageUrls }) {
                     ...(mediaIds.length > 0 ? { media: { media_ids: mediaIds } } : {}),
                 });
 
+                incrementXRateLimit();
                 results.x = { success: true, id: tweet.data.id };
             } catch (err) {
                 results.x = { success: false, error: err.message };
@@ -279,12 +308,10 @@ export async function postToSNS({ platforms, text, imageUrls }) {
  * @param {Array<{text: string, imageUrls?: string[]}>} tweets - 트윗 배열
  */
 export async function postThread(tweets) {
-    // 스레드 내 트윗 수만큼 rate limit 체크 및 카운팅
-    for (let i = 0; i < tweets.length; i++) {
-        const rateCheck = checkXRateLimit();
-        if (!rateCheck.allowed) {
-            return { success: false, error: `${rateCheck.reason} (트윗 ${i + 1}/${tweets.length}번째에서 차단)` };
-        }
+    // Thread pre-check by total size; counters are incremented only on successful posts.
+    const rateCheck = checkXRateLimit("default", tweets.length);
+    if (!rateCheck.allowed) {
+        return { success: false, error: `${rateCheck.reason} (rate limit blocked before thread start)` };
     }
 
     try {
@@ -302,7 +329,7 @@ export async function postThread(tweets) {
             const item = typeof tweets[i] === 'string' ? { text: tweets[i] } : tweets[i];
             const text = i === 0 ? buildSafeText(item.text) : item.text;
 
-            // 이미지 업로드
+            // Upload media (up to 4 per tweet)
             let mediaIds = [];
             if (item.imageUrls && Array.isArray(item.imageUrls)) {
                 for (const url of item.imageUrls.slice(0, 4)) {
@@ -322,6 +349,7 @@ export async function postThread(tweets) {
 
             const tweet = await client.readWrite.v2.tweet(tweetParams);
             results.push(tweet.data);
+            incrementXRateLimit();
             previousTweetId = tweet.data.id;
         }
 
