@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import * as cheerio from 'cheerio';
 import { db } from './firebase.js';
+import { getBuzzContext } from './buzzCollector.js';
 
 const NEWS_COLLECTION = 'bot_settings';
 const NEWS_DOC = 'news_digest';
@@ -176,6 +177,8 @@ function crossValidate(articles) {
             if (areSimilar(a.words, b.words)) {
                 a.article.crossVerified = true;
                 b.article.crossVerified = true;
+                a.article.crossSourceCount = (a.article.crossSourceCount || 1) + 1;
+                b.article.crossSourceCount = (b.article.crossSourceCount || 1) + 1;
                 a.article.relevanceScore += 3;
                 b.article.relevanceScore += 3;
             }
@@ -183,6 +186,179 @@ function crossValidate(articles) {
     }
 
     return articles;
+}
+
+// ─── buzzScore 계산 함수들 (5개 컴포넌트, 각 0~20) ──────
+
+/**
+ * Reddit 기사 화제성: num_comments, upvote_ratio, score velocity
+ * @returns {number} 0~20
+ */
+function calcRedditBuzz(redditData) {
+    if (!redditData) return 0;
+    const { score, numComments, upvoteRatio, ageHours } = redditData;
+
+    // velocity: 시간당 점수 (빨리 뜨는 포스트일수록 높음)
+    const velocity = Math.min((score / Math.max(ageHours, 1)) * 0.4, 8);
+    // 댓글 활발도
+    const commentBuzz = Math.min((numComments || 0) / 15, 6);
+    // 공감도 (upvote_ratio 높으면 = 논란 적음, 공감 높음)
+    const ratio = upvoteRatio || 0.5;
+    const consensus = ratio >= 0.9 ? 4 : ratio >= 0.75 ? 3 : ratio < 0.6 ? 2 : 1;
+    // 절대 규모
+    const magnitude = Math.min(score / 500, 2);
+
+    return Math.min(Math.round(velocity + commentBuzz + consensus + magnitude), 20);
+}
+
+/**
+ * X 트렌드 매칭 화제성: 기사 제목이 X 핫 해시태그/바이럴 트윗과 겹치는지
+ * @returns {number} 0~20
+ */
+function calcTrendMatchBuzz(title, description, buzzContext) {
+    const xTrends = buzzContext?.xTrends;
+    if (!xTrends) return 0;
+
+    const text = `${title || ''} ${description || ''}`.toLowerCase();
+    let buzz = 0;
+
+    // X 인기 해시태그 매칭 (태그당 5점, 최대 15)
+    const hashtags = xTrends.popularHashtags || [];
+    for (const tag of hashtags.slice(0, 10)) {
+        const clean = (tag || '').replace(/^#/, '').toLowerCase();
+        if (clean.length >= 2 && text.includes(clean)) {
+            buzz += 5;
+            if (buzz >= 15) break;
+        }
+    }
+
+    // X 바이럴 트윗 키워드 중복 (0~5)
+    const viralTweets = xTrends.topViralTweets || [];
+    for (const tweet of viralTweets) {
+        const tweetWords = normalizeTitle(tweet).split(' ').filter(w => w.length >= 3);
+        const titleWords = normalizeTitle(title).split(' ').filter(w => w.length >= 3);
+        let overlap = 0;
+        const tweetSet = new Set(tweetWords);
+        for (const w of titleWords) {
+            if (tweetSet.has(w)) overlap++;
+        }
+        if (overlap >= 2) { buzz += 5; break; }
+    }
+
+    return Math.min(buzz, 20);
+}
+
+/**
+ * 외부 트렌드 매칭 화제성: Google Trends + YouTube + Naver DataLab
+ * @returns {number} 0~20
+ */
+function calcExternalBuzz(title, description, buzzContext) {
+    const text = `${title || ''} ${description || ''}`.toLowerCase();
+    let buzz = 0;
+
+    // Google Trends 인기검색어 매칭 (0~8)
+    const google = buzzContext?.google;
+    if (google) {
+        const keywords = [...(google.kpopRelated || []), ...(google.trendingKeywords || []).slice(0, 10)];
+        for (const kw of keywords) {
+            if (kw && kw.length >= 2 && text.includes(kw.toLowerCase())) {
+                buzz += 4;
+                if (buzz >= 8) break;
+            }
+        }
+        buzz = Math.min(buzz, 8);
+    }
+
+    // YouTube 트렌딩 아티스트/키워드 매칭 (0~6)
+    const youtube = buzzContext?.youtube;
+    if (youtube) {
+        const artists = youtube.trendingArtists || [];
+        const videoTitles = (youtube.hotVideos || []).map(v => v.title || '');
+        for (const artist of artists) {
+            if (artist && artist.length >= 2 && text.includes(artist.toLowerCase())) {
+                buzz += 3;
+                break;
+            }
+        }
+        for (const vTitle of videoTitles.slice(0, 5)) {
+            const vWords = normalizeTitle(vTitle).split(' ').filter(w => w.length >= 3);
+            const tWords = normalizeTitle(title).split(' ').filter(w => w.length >= 3);
+            let overlap = 0;
+            const vSet = new Set(vWords);
+            for (const w of tWords) {
+                if (vSet.has(w)) overlap++;
+            }
+            if (overlap >= 2) { buzz += 3; break; }
+        }
+        buzz = Math.min(buzz, 8 + 6); // Google(8) + YouTube(6) cap
+    }
+
+    // Naver DataLab 상승 키워드 매칭 (0~6)
+    const naver = buzzContext?.naver;
+    if (naver) {
+        const risingKeywords = (naver.keywordTrends || []).filter(t => t.trend === 'rising');
+        for (const trend of risingKeywords) {
+            const kw = (trend.keyword || '').toLowerCase();
+            // 키워드 그룹의 단어들과 매칭
+            const words = kw.split(/\s+/);
+            for (const w of words) {
+                if (w.length >= 2 && text.includes(w)) {
+                    buzz += 3;
+                    break;
+                }
+            }
+            if (buzz >= 20) break;
+        }
+    }
+
+    return Math.min(buzz, 20);
+}
+
+/**
+ * 교차 소스 화제성: 여러 매체에서 동시 보도
+ * @returns {number} 0~20
+ */
+function calcCrossSourceBuzz(article) {
+    if (!article.crossVerified) return 0;
+    const count = article.crossSourceCount || 1;
+    if (count >= 3) return 20;
+    if (count >= 2) return 12;
+    return 8;
+}
+
+/**
+ * 시간 가속도 화제성: 최신일수록 + 고관련성일수록 높음
+ * @returns {number} 0~20
+ */
+function calcFreshnessBuzz(publishedAt, relevanceScore) {
+    if (!publishedAt) return 0;
+    const ageHours = (Date.now() - new Date(publishedAt).getTime()) / 3600000;
+    if (ageHours < 0) return 0;
+
+    let buzz = 0;
+    if (ageHours <= 2) buzz = 12;        // 속보급
+    else if (ageHours <= 6) buzz = 8;    // 매우 최신
+    else if (ageHours <= 12) buzz = 5;   // 당일 오전
+    else if (ageHours <= 24) buzz = 3;   // 오늘
+
+    // 보너스: 최신 + 고관련성 = 핫토픽
+    if (ageHours <= 6 && relevanceScore >= 5) buzz += 8;
+    else if (ageHours <= 12 && relevanceScore >= 3) buzz += 4;
+
+    return Math.min(buzz, 20);
+}
+
+/**
+ * 기사의 종합 화제성(buzzScore)를 계산 (0~100)
+ */
+function calculateBuzzScore(article, buzzContext) {
+    const reddit = calcRedditBuzz(article._redditData || null);
+    const xTrend = calcTrendMatchBuzz(article.title, '', buzzContext);
+    const external = calcExternalBuzz(article.title, '', buzzContext);
+    const crossSource = calcCrossSourceBuzz(article);
+    const freshness = calcFreshnessBuzz(article.publishedAt, article.relevanceScore);
+
+    return Math.min(reddit + xTrend + external + crossSource + freshness, 100);
 }
 
 /**
@@ -304,6 +480,8 @@ async function fetchRedditPosts() {
                 const freshnessDeduct = freshness === 'stale' ? -1 : 0;
                 const redditBonus = Math.min(Math.floor(post.score / 100), 5);
 
+                const ageHours = Math.max((Date.now() - new Date(publishedAt).getTime()) / 3600000, 0.1);
+
                 articles.push({
                     title: (post.title || '').slice(0, 200),
                     source: `Reddit r/${subreddit}`,
@@ -317,6 +495,13 @@ async function fetchRedditPosts() {
                     freshness,
                     flagged,
                     crossVerified: false,
+                    // buzzScore 계산용 Reddit 메타데이터 (저장 후 삭제)
+                    _redditData: {
+                        score: post.score,
+                        numComments: post.num_comments || 0,
+                        upvoteRatio: post.upvote_ratio || 0.5,
+                        ageHours,
+                    },
                 });
             }
             console.log(`[NewsCollector] Reddit r/${subreddit}: ${posts.length}건 수집`);
@@ -508,7 +693,30 @@ export async function collectNews() {
             console.log(`[NewsCollector] 클릭베이트 감지: ${flaggedCount}건 감점`);
         }
 
-        // 관련성 점수 기준 정렬 → 상위 15개만 저장
+        // buzzScore 계산: 외부 트렌드 데이터 로드 → 각 기사에 화제성 점수 부여
+        const buzzContext = await getBuzzContext().catch(err => {
+            console.warn('[NewsCollector] buzzContext 로드 실패, buzzScore 없이 진행:', err.message);
+            return { google: null, youtube: null, naver: null, xTrends: null, internalTrends: [] };
+        });
+
+        for (const article of allArticles) {
+            article.buzzScore = calculateBuzzScore(article, buzzContext);
+
+            // buzzScore를 relevanceScore에 반영 (100점 = +15점 보너스)
+            const buzzBonus = Math.round(article.buzzScore * 0.15);
+            article.relevanceScore += buzzBonus;
+
+            // Reddit 임시 데이터 삭제 (Firestore에 저장하지 않음)
+            delete article._redditData;
+        }
+
+        const hotCount = allArticles.filter(a => a.buzzScore >= 50).length;
+        const warmCount = allArticles.filter(a => a.buzzScore >= 20 && a.buzzScore < 50).length;
+        if (hotCount > 0 || warmCount > 0) {
+            console.log(`[NewsCollector] 화제성 분석: 🔥높음 ${hotCount}건 | 💬보통 ${warmCount}건`);
+        }
+
+        // 관련성+화제성 종합 점수 기준 정렬 → 상위 15개만 저장
         allArticles.sort((a, b) => b.relevanceScore - a.relevanceScore);
         const topArticles = allArticles.slice(0, 15);
 
@@ -540,6 +748,19 @@ export async function collectNews() {
                 duplicatesRemoved: beforeDedup - afterDedup,
                 crossVerified: crossVerifiedCount,
                 clickbaitFlagged: flaggedCount,
+            },
+            buzzStats: {
+                highBuzz: hotCount,
+                mediumBuzz: warmCount,
+                avgBuzzScore: allArticles.length > 0
+                    ? Math.round(allArticles.reduce((s, a) => s + (a.buzzScore || 0), 0) / allArticles.length)
+                    : 0,
+                sourcesAvailable: {
+                    google: !!buzzContext.google,
+                    youtube: !!buzzContext.youtube,
+                    naver: !!buzzContext.naver,
+                    xTrends: !!buzzContext.xTrends,
+                },
             },
         });
 
@@ -586,12 +807,22 @@ export async function getNewsPrompt() {
             // 클릭베이트 경고
             if (a.flagged === 'clickbait') parts.push('미검증');
 
+            // 화제성 표시
+            if (a.buzzScore >= 50) parts.push('🔥화제');
+            else if (a.buzzScore >= 20) parts.push('화제성:보통');
+
             return `"${a.title}" (${parts.join(', ')})`;
         }).join('; ');
 
         const kwStr = topKeywords.slice(0, 5).join(', ');
 
-        return `[최신 K-POP/패션 뉴스 동향: ${headlines}. 핵심 키워드: ${kwStr} - 신뢰도가 높은 뉴스는 적극 반영하고, 미검증/커뮤니티 뉴스는 참고만 하여 AI 룩북 화보 컨셉에 자연스럽게 반영해줘.]`;
+        // 고화제성 기사에 대한 추가 강조
+        const hotArticle = topArticles.find(a => (a.buzzScore || 0) >= 50);
+        const buzzNote = hotArticle
+            ? ` 특히 "${hotArticle.title}"은 현재 SNS에서 화제가 되고 있으니 적극 반영 고려.`
+            : '';
+
+        return `[최신 K-POP/패션 뉴스 동향: ${headlines}. 핵심 키워드: ${kwStr} - 신뢰도가 높은 뉴스는 적극 반영하고, 🔥 표시된 화제성 높은 뉴스를 우선, 미검증/커뮤니티 뉴스는 참고만 하여 AI 룩북 화보 컨셉에 자연스럽게 반영해줘.${buzzNote}]`;
     } catch (err) {
         console.error("[NewsCollector] 프롬프트 로딩 실패:", err.message);
         return "";
@@ -614,6 +845,7 @@ export async function getNewsDigestMessage() {
         const articles = data.articles || [];
         const stats = data.sourceStats || {};
         const vStats = data.verificationStats || {};
+        const bStats = data.buzzStats || {};
         const topKeywords = data.topKeywords || [];
         const lastCollected = data.lastCollected?.toDate?.() || data.lastCollected;
 
@@ -631,9 +863,28 @@ export async function getNewsDigestMessage() {
         if (vParts.length > 0) {
             msg += `🔍 검증: ${vParts.join(' | ')}\n`;
         }
+
+        // 화제성 통계 표시
+        if (bStats.highBuzz > 0 || bStats.mediumBuzz > 0) {
+            const buzzParts = [];
+            if (bStats.highBuzz > 0) buzzParts.push(`🔥높음 ${bStats.highBuzz}`);
+            if (bStats.mediumBuzz > 0) buzzParts.push(`💬보통 ${bStats.mediumBuzz}`);
+            if (bStats.avgBuzzScore > 0) buzzParts.push(`평균 ${bStats.avgBuzzScore}`);
+            msg += `🔥 화제성: ${buzzParts.join(' | ')}`;
+
+            // 트렌드 소스 상태
+            const src = bStats.sourcesAvailable || {};
+            const srcParts = [];
+            if (src.google) srcParts.push('Google✅');
+            if (src.youtube) srcParts.push('YouTube✅');
+            if (src.naver) srcParts.push('Naver✅');
+            if (src.xTrends) srcParts.push('X✅');
+            if (srcParts.length > 0) msg += ` (${srcParts.join(' ')})`;
+            msg += '\n';
+        }
         msg += '\n';
 
-        // 상위 기사 (최대 7개) + 검증 상태 아이콘
+        // 상위 기사 (최대 7개) + 검증 상태 + 화제성 아이콘
         const display = articles.slice(0, 7);
         for (let i = 0; i < display.length; i++) {
             const a = display[i];
@@ -646,11 +897,20 @@ export async function getNewsDigestMessage() {
             else if (a.credibility === 'high') verifyIcon = '✅';   // 고신뢰 소스
             else if (a.credibility === 'low') verifyIcon = '❓';    // 저신뢰
 
+            // 화제성 불꽃 바
+            const buzz = a.buzzScore || 0;
+            let buzzBar = '';
+            if (buzz >= 70) buzzBar = '🔥🔥🔥';
+            else if (buzz >= 50) buzzBar = '🔥🔥';
+            else if (buzz >= 30) buzzBar = '🔥';
+
             // 신선도 표시
             const freshnessTag = a.freshness ? ` [${freshnessToKorean(a.freshness)}]` : '';
 
-            msg += `*${i + 1}.* ${verifyIcon} ${a.title}\n`;
-            msg += `   _${a.source}_ ${scoreBar}${freshnessTag}\n`;
+            msg += `*${i + 1}.* ${verifyIcon}${buzzBar} ${a.title}\n`;
+            msg += `   _${a.source}_ ${scoreBar}${freshnessTag}`;
+            if (buzz >= 20) msg += ` (화제성:${buzz})`;
+            msg += '\n';
             if (a.link) msg += `   [링크](${a.link})\n`;
             msg += '\n';
         }
@@ -660,7 +920,7 @@ export async function getNewsDigestMessage() {
         }
 
         // 아이콘 범례
-        msg += `\n_✅ 검증됨 | 🔶 보통 | ⚠️ 클릭베이트 | ❓ 커뮤니티_`;
+        msg += `\n_✅ 검증됨 | 🔶 보통 | ⚠️ 클릭베이트 | ❓ 커뮤니티 | 🔥 화제_`;
 
         return msg;
     } catch (err) {

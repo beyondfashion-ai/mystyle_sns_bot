@@ -5,6 +5,7 @@ import { scrapeExternalTrends } from './trendScraper.js';
 import { runDailyEditorial, runWeeklyEditorial, runMonthlyEditorial, runQuarterlyEditorial } from './editorialEvolution.js';
 import { updateTrends } from './trendAnalyzer.js';
 import { collectNews } from './newsCollector.js';
+import { collectBuzzSignals } from './buzzCollector.js';
 
 /**
  * 스케줄러 에러를 관리자에게 텔레그램으로 알린다.
@@ -104,7 +105,18 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    // --- 06:00 KST 뉴스 수집 (첫 X 초안 10:00 전에 최신 뉴스 확보) ---
+    // --- 05:30 KST 화제성 신호 수집 (Google Trends + YouTube + Naver DataLab) ---
+    cron.schedule('30 5 * * *', async () => {
+        console.log('[Scheduler] 05:30 KST 화제성 신호 수집 시작');
+        try {
+            await collectBuzzSignals();
+        } catch (err) {
+            console.error('[Scheduler] 화제성 수집 실패:', err.message);
+            await notifyError(bot, '화제성 수집 (05:30)', err);
+        }
+    }, { timezone: 'Asia/Seoul' });
+
+    // --- 06:00 KST 뉴스 수집 (05:30에 수집한 화제성 데이터 활용) ---
     cron.schedule('0 6 * * *', async () => {
         console.log('[Scheduler] 06:00 KST 뉴스 수집 시작');
         try {
@@ -160,5 +172,5 @@ export function startScheduler(bot) {
         }
     }, { timezone: 'Asia/Seoul' });
 
-    console.log('[Scheduler] 스케줄러 시작 (X: 10:00, 15:00, 20:00 / IG: 12:00, 18:00 / 분석: 00:00 / 뉴스: 06:00 / 에디토리얼: 01-04:00 KST)');
+    console.log('[Scheduler] 스케줄러 시작 (X: 10:00, 15:00, 20:00 / IG: 12:00, 18:00 / 분석: 00:00 / 화제성: 05:30 / 뉴스: 06:00 / 에디토리얼: 01-04:00 KST)');
 }
