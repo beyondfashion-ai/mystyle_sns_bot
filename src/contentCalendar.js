@@ -1,20 +1,24 @@
 /**
  * 콘텐츠 캘린더 모듈
  *
- * content_calendar_plan.md의 10포맷×7일 편성표를 코드로 구현하여
- * 스케줄러가 요일/시간대에 맞는 포맷을 자동으로 선택하도록 한다.
+ * 15포맷×7일 편성표.
+ * 스케줄러가 요일/시간대에 맞는 포맷을 자동으로 선택한다.
  *
  * X: 10:00, 15:00, 20:00 KST
  * IG: 12:00, 18:00 KST
  */
 
-// 요일별 X 포맷 편성표 (content_calendar_plan.md 기반)
+import { toKST } from './utils.js';
+
+// 요일별 X 포맷 편성표
 // 0=일요일, 1=월요일, ..., 6=토요일
+// fan_discussion: 이미지 불필요, 참여형 → X 20시대에 배치
+// mv_analysis: 비주얼 분석 → IG에도 배치
 const X_CALENDAR = {
     0: { // 일요일
         10: 'airport_fashion',
         15: 'retro_remake',
-        20: 'festival_look',
+        20: 'fan_discussion',
     },
     1: { // 월요일
         10: 'virtual_influencer_ootd',
@@ -34,7 +38,7 @@ const X_CALENDAR = {
     4: { // 목요일
         10: 'street_snap',
         15: 'festival_look',
-        20: 'airport_fashion',
+        20: 'fan_discussion',
     },
     5: { // 금요일
         10: 'virtual_influencer_ootd',
@@ -50,11 +54,12 @@ const X_CALENDAR = {
 
 // 요일별 IG 포맷 편성표
 // IG는 비주얼 중심이므로 이미지가 강한 포맷을 배치
+// mv_analysis: MV 비주얼 분석 → 수요일 IG에 배치
 const IG_CALENDAR = {
     0: { 12: 'style_editorial', 18: 'vibe_alike' },
     1: { 12: 'comeback_lookbook', 18: 'highfashion_tribute' },
     2: { 12: 'airport_fashion', 18: 'weekly_trend' },
-    3: { 12: 'stage_look', 18: 'retro_remake' },
+    3: { 12: 'mv_analysis', 18: 'retro_remake' },
     4: { 12: 'festival_look', 18: 'street_snap' },
     5: { 12: 'style_editorial', 18: 'comeback_lookbook' },
     6: { 12: 'vibe_alike', 18: 'seasonal_curation' },
@@ -171,10 +176,3 @@ export function getDayName(dayOfWeek) {
     return DAY_NAMES[dayOfWeek] || '';
 }
 
-/**
- * UTC Date → KST Date 변환 헬퍼
- */
-function toKST(date) {
-    const offset = 9 * 60 * 60 * 1000; // KST = UTC+9
-    return new Date(date.getTime() + offset);
-}

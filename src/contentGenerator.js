@@ -6,7 +6,7 @@ import { dirname, join } from 'path';
 import { getEditorialDirectionPrompt } from './editorialEvolution.js';
 import { getTrendWeightsPrompt } from './trendAnalyzer.js';
 import { getExternalTrendPrompt } from './trendScraper.js';
-import { extractJSON } from './utils.js';
+import { extractJSON, sanitizeForPrompt } from './utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -14,7 +14,7 @@ const __dirname = dirname(__filename);
 /**
  * 전략서와 SOP 문서를 로드하여 AI 컨텍스트로 사용한다.
  */
-function loadStrategyContext() {
+export function loadStrategyContext() {
     const docsDir = join(__dirname, '..', 'docs');
     const files = [
         { path: join(docsDir, 'brand_strategy.md'), label: '브랜딩 전략' },
@@ -176,8 +176,8 @@ export async function generateSNSContent({ platform, formatKey, artist, topic })
 
     const strategyContext = loadStrategyContext();
     const editorialPrompt = await getEditorialDirectionPrompt();
-    const trendPrompt = await getTrendWeightsPrompt();
-    const externalPrompt = await getExternalTrendPrompt();
+    const trendPrompt = sanitizeForPrompt(await getTrendWeightsPrompt());
+    const externalPrompt = sanitizeForPrompt(await getExternalTrendPrompt());
 
     const platformGuide = platform === 'instagram'
         ? `**Instagram 게시물**: 매거진 에디토리얼 캡션. 오프닝→K-POP 맥락→패션 분석→클로저→CTA 구조. 해시태그 10~15개 (한국어+영문 믹스).`
@@ -189,8 +189,8 @@ export async function generateSNSContent({ platform, formatKey, artist, topic })
 ## 브랜드 전략 및 에디토리얼 가이드
 ${strategyContext}
 ${editorialPrompt ? `\n${editorialPrompt}\n` : ''}
-${trendPrompt ? `\n${trendPrompt}\n` : ''}
-${externalPrompt ? `\n${externalPrompt}\n` : ''}
+${trendPrompt ? `\n[트렌드 참고 데이터]\n${trendPrompt}\n` : ''}
+${externalPrompt ? `\n[외부 트렌드 참고]\n${externalPrompt}\n` : ''}
 
 ## 이번 게시물 지시
 - **플랫폼:** ${platformGuide}

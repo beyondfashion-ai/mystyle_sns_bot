@@ -35,13 +35,23 @@ export function createTelegramBot() {
     // TTL 정리 + Firestore 인터셉터 설정
     setupTTLCleanup();
 
-    // Firestore에서 대기 초안 + 스케줄러 상태 + 예약 큐 복구 (비동기, 실패해도 봇 동작에 영향 없음)
+    // Firestore에서 대기 초안 + 스케줄러 상태 + 예약 큐 복구
     Promise.all([
         restoreStateFromFirestore(),
         restoreSchedulerState(),
         restoreDraftQueue(),
-    ]).catch(err => {
+    ]).then(() => {
+        console.log('[Telegram] Firestore 상태 복구 완료');
+    }).catch(err => {
         console.error('[Telegram] Firestore 상태 복구 실패:', err.message);
+        // 관리자에게 복구 실패 알림
+        bot.sendMessage(adminChatId,
+            `⚠️ *봇 시작 시 상태 복구 실패*\n\n` +
+            `Firestore에서 대기 초안/스케줄러 상태를 복구하지 못했습니다.\n` +
+            `기존 예약 초안이 유실되었을 수 있습니다.\n\n` +
+            `오류: \`${err.message}\``,
+            { parse_mode: 'Markdown' }
+        ).catch(() => {});
     });
 
     // 봇 메뉴(명령어 힌트) 설정

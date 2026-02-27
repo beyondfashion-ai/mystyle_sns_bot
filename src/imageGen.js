@@ -3,6 +3,8 @@ import admin from 'firebase-admin';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import { existsSync } from 'fs';
+import { IMAGE_GEN_MAX_RETRIES, IMAGE_GEN_RETRY_DELAY_MS } from './config.js';
+import { createLogger } from './logger.js';
 
 if (existsSync('.env.local')) {
     dotenv.config({ path: '.env.local' });
@@ -10,11 +12,33 @@ if (existsSync('.env.local')) {
     dotenv.config();
 }
 
+const log = createLogger('ImageGen');
+
 // fal.ai 클라이언트 설정
 fal.config({ credentials: process.env.FAL_AI_KEY });
 
 const FAL_MODEL_FLUX = process.env.FAL_MODEL || 'fal-ai/flux-pro/v1.1-ultra';
 const FAL_MODEL_RECRAFT = 'fal-ai/recraft-v3';
+
+/**
+ * 재시도 래퍼. fal.ai 일시 장애에 대응한다.
+ */
+async function withRetry(fn, label, maxRetries = IMAGE_GEN_MAX_RETRIES) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            if (attempt < maxRetries) {
+                const delay = IMAGE_GEN_RETRY_DELAY_MS * (attempt + 1);
+                log.warn(`${label} 실패 (${attempt + 1}/${maxRetries + 1}), ${delay}ms 후 재시도: ${err.message}`);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+    }
+    throw lastError;
+}
 
 // Vibe-Alike 정책 프리픽스 (모든 이미지 프롬프트에 자동 삽입)
 const VIBE_ALIKE_PREFIX =
@@ -85,28 +109,30 @@ export async function generateImage(prompt, options = {}) {
         enableSafetyChecker = true,
     } = options;
 
-    const result = await fal.subscribe(FAL_MODEL_FLUX, {
-        input: {
-            prompt,
-            image_size: imageSize,
-            num_inference_steps: numInferenceSteps,
-            enable_safety_checker: enableSafetyChecker,
-            num_images: 1,
-        },
-    });
+    return withRetry(async () => {
+        const result = await fal.subscribe(FAL_MODEL_FLUX, {
+            input: {
+                prompt,
+                image_size: imageSize,
+                num_inference_steps: numInferenceSteps,
+                enable_safety_checker: enableSafetyChecker,
+                num_images: 1,
+            },
+        });
 
-    const image = result.data.images[0];
+        const image = result.data.images[0];
 
-    // NSFW 감지 시 에러
-    if (result.data.has_nsfw_concepts && result.data.has_nsfw_concepts[0]) {
-        throw new Error('NSFW content detected. Image generation rejected.');
-    }
+        // NSFW 감지 시 에러
+        if (result.data.has_nsfw_concepts && result.data.has_nsfw_concepts[0]) {
+            throw new Error('NSFW content detected. Image generation rejected.');
+        }
 
-    return {
-        url: image.url,
-        width: image.width,
-        height: image.height,
-    };
+        return {
+            url: image.url,
+            width: image.width,
+            height: image.height,
+        };
+    }, 'FLUX 이미지 생성');
 }
 
 /**
@@ -136,10 +162,11 @@ export async function generateImageRecraft(prompt, options = {}) {
         input.colors = colors.slice(0, 5);
     }
 
-    const result = await fal.subscribe(FAL_MODEL_RECRAFT, { input });
-    const image = result.data.images[0];
-
-    return { url: image.url };
+    return withRetry(async () => {
+        const result = await fal.subscribe(FAL_MODEL_RECRAFT, { input });
+        const image = result.data.images[0];
+        return { url: image.url };
+    }, 'Recraft 이미지 생성');
 }
 
 /**
@@ -211,7 +238,7 @@ export async function uploadToFirebaseStorage(imageUrl, filename) {
         const check = await fetch(publicUrl, { method: 'HEAD' });
         if (!check.ok) throw new Error('Upload verification failed');
     } catch (err) {
-        console.warn('[ImageGen] Upload verification failed, retrying...');
+        log.warn('Upload verification failed, retrying...');
         await file.save(buffer, { metadata: { contentType } });
         await file.makePublic();
     }

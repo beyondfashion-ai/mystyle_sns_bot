@@ -3,9 +3,12 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { uploadToFirebaseStorage } from './imageGen.js';
+import { PUPPETEER_RENDER_TIMEOUT_MS, SLIDE_WIDTH, SLIDE_HEIGHT } from './config.js';
+import { createLogger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const log = createLogger('CardNews');
 
 const TEMPLATES_DIR = join(__dirname, '..', 'data', 'cardnews-templates');
 
@@ -17,9 +20,24 @@ const GRADIENTS = {
     default: 'linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 100%)',
 };
 
-// 슬라이드 사이즈 (Instagram 4:5 세로형)
-const SLIDE_WIDTH = 1080;
-const SLIDE_HEIGHT = 1350;
+// ===== 브라우저 인스턴스 재사용 풀 =====
+let _browser = null;
+
+async function getBrowser() {
+    if (_browser && _browser.isConnected()) return _browser;
+    _browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    return _browser;
+}
+
+async function closeBrowser() {
+    if (_browser) {
+        await _browser.close().catch(() => {});
+        _browser = null;
+    }
+}
 
 /**
  * HTML 템플릿 파일을 읽어 변수를 치환한다.
@@ -38,21 +56,22 @@ export function buildSlideHTML(templateType, slideData) {
 
 /**
  * Puppeteer로 HTML을 렌더링하여 PNG Buffer를 반환한다.
+ * 브라우저 인스턴스를 재사용하여 성능을 최적화한다.
  */
 export async function renderSlide(htmlContent) {
-    const browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    const browser = await getBrowser();
+    const page = await browser.newPage();
 
     try {
-        const page = await browser.newPage();
         await page.setViewport({ width: SLIDE_WIDTH, height: SLIDE_HEIGHT });
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 15000 });
+        await page.setContent(htmlContent, {
+            waitUntil: 'networkidle0',
+            timeout: PUPPETEER_RENDER_TIMEOUT_MS,
+        });
         const buffer = await page.screenshot({ type: 'png', fullPage: false });
         return buffer;
     } finally {
-        await browser.close();
+        await page.close();
     }
 }
 
@@ -70,32 +89,38 @@ export async function generateCardNews(cardNewsData) {
     const gradient = GRADIENTS[cardNewsData.type] || GRADIENTS.default;
     const slides = [];
 
-    // 1. 커버 슬라이드
-    const coverHTML = buildSlideHTML('cover', {
-        title: cardNewsData.title,
-        subtitle: cardNewsData.subtitle || '',
-        imageUrl: cardNewsData.coverImageUrl || '',
-        gradient,
-    });
-    slides.push(await renderSlide(coverHTML));
-
-    // 2. 본문 슬라이드
-    for (let i = 0; i < cardNewsData.items.length; i++) {
-        const item = cardNewsData.items[i];
-        const contentHTML = buildSlideHTML('content', {
-            number: String(i + 1),
-            title: item.title,
-            description: item.description,
-            imageUrl: item.imageUrl || '',
-            imageClass: item.imageUrl ? '' : 'no-image',
+    try {
+        // 1. 커버 슬라이드
+        const coverHTML = buildSlideHTML('cover', {
+            title: cardNewsData.title,
+            subtitle: cardNewsData.subtitle || '',
+            imageUrl: cardNewsData.coverImageUrl || '',
             gradient,
         });
-        slides.push(await renderSlide(contentHTML));
-    }
+        slides.push(await renderSlide(coverHTML));
 
-    // 3. 아웃트로 슬라이드
-    const outroHTML = buildSlideHTML('outro', { gradient });
-    slides.push(await renderSlide(outroHTML));
+        // 2. 본문 슬라이드
+        for (let i = 0; i < cardNewsData.items.length; i++) {
+            const item = cardNewsData.items[i];
+            const contentHTML = buildSlideHTML('content', {
+                number: String(i + 1),
+                title: item.title,
+                description: item.description,
+                imageUrl: item.imageUrl || '',
+                imageClass: item.imageUrl ? '' : 'no-image',
+                gradient,
+            });
+            slides.push(await renderSlide(contentHTML));
+        }
+
+        // 3. 아웃트로 슬라이드
+        const outroHTML = buildSlideHTML('outro', { gradient });
+        slides.push(await renderSlide(outroHTML));
+    } catch (err) {
+        // 렌더링 실패 시 브라우저 풀 리셋
+        await closeBrowser();
+        throw err;
+    }
 
     return slides;
 }
@@ -113,7 +138,6 @@ export async function generateAndUploadCardNews(cardNewsData) {
         const slideBuffer = slides[i];
         const filename = `cardnews_${cardNewsData.type}_${timestamp}_slide${i}.png`;
 
-        // Buffer → temporary data URL 대신 직접 Firebase에 업로드
         const url = await uploadSlideToFirebase(slideBuffer, filename);
         urls.push(url);
     }

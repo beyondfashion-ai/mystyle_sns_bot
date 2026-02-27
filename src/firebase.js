@@ -43,3 +43,20 @@ if (!serviceAccountPath) {
 }
 
 export const db = admin.apps.length ? admin.firestore() : null;
+
+/**
+ * Firebase 연결 상태를 확인하고, 미연결 시 구체적인 에러 메시지를 반환한다.
+ * @param {string} feature - 요청한 기능명
+ * @returns {{ ok: true } | { ok: false, reason: string }}
+ */
+export function requireDB(feature) {
+    if (db) return { ok: true };
+
+    const reason = !serviceAccountPath
+        ? 'FIREBASE_SERVICE_ACCOUNT_KEY_PATH 환경변수가 설정되지 않았습니다.'
+        : !fs.existsSync(serviceAccountPath)
+            ? `서비스 계정 키 파일이 존재하지 않습니다: ${serviceAccountPath}`
+            : 'Firebase Admin SDK 초기화에 실패했습니다.';
+
+    return { ok: false, reason: `[${feature}] Firebase 미연결 — ${reason}` };
+}

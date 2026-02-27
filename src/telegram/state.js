@@ -1,18 +1,14 @@
 import { db } from '../firebase.js';
+import { DRAFT_TTL_MS, SCHEDULED_DRAFT_TTL_MS, COLLECTIONS } from '../config.js';
+import { normalizeDraft } from '../utils.js';
 
 // ===== 상태 컨테이너 =====
-export const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
+/** @type {Map<number, import('../utils.js').Draft>} messageId -> Draft */
+export const pendingDrafts = new Map();
 export const pendingCardNews = new Map(); // messageId -> { type, title, imageUrls, caption, artist }
-export const editMode = new Map();        // chatId -> messageId
+export const editMode = new Map();        // chatId -> { messageId, mode }
 
-// ===== TTL 설정 =====
-const DRAFT_TTL_MS = 30 * 60 * 1000; // 30분
-const SCHEDULED_DRAFT_TTL_MS = 72 * 60 * 60 * 1000; // 72시간 (D-2 예약 초안)
 const draftTimestamps = new Map();    // messageId -> timestamp
-
-// ===== Firestore 컬렉션 =====
-const DRAFTS_COLLECTION = 'telegram_drafts';
-const CARDNEWS_COLLECTION = 'telegram_cardnews';
 
 // ===== Firestore 영속화 (fire-and-forget) =====
 
@@ -20,7 +16,7 @@ async function persistDraftToFirestore(messageId, draft) {
     if (!db) return;
     try {
         const ttl = draft.slotKey ? SCHEDULED_DRAFT_TTL_MS : DRAFT_TTL_MS;
-        await db.collection(DRAFTS_COLLECTION).doc(String(messageId)).set({
+        await db.collection(COLLECTIONS.DRAFTS).doc(String(messageId)).set({
             ...draft,
             status: 'pending',
             createdAt: new Date(),
@@ -34,7 +30,7 @@ async function persistDraftToFirestore(messageId, draft) {
 async function removeDraftFromFirestore(messageId) {
     if (!db) return;
     try {
-        await db.collection(DRAFTS_COLLECTION).doc(String(messageId)).delete();
+        await db.collection(COLLECTIONS.DRAFTS).doc(String(messageId)).delete();
     } catch (err) {
         console.error('[State] Firestore draft delete failed:', err.message);
     }
@@ -43,7 +39,7 @@ async function removeDraftFromFirestore(messageId) {
 async function persistCardNewsToFirestore(messageId, cnData) {
     if (!db) return;
     try {
-        await db.collection(CARDNEWS_COLLECTION).doc(String(messageId)).set({
+        await db.collection(COLLECTIONS.CARDNEWS).doc(String(messageId)).set({
             ...cnData,
             status: 'pending',
             createdAt: new Date(),
@@ -57,7 +53,7 @@ async function persistCardNewsToFirestore(messageId, cnData) {
 async function removeCardNewsFromFirestore(messageId) {
     if (!db) return;
     try {
-        await db.collection(CARDNEWS_COLLECTION).doc(String(messageId)).delete();
+        await db.collection(COLLECTIONS.CARDNEWS).doc(String(messageId)).delete();
     } catch (err) {
         console.error('[State] Firestore cardnews delete failed:', err.message);
     }
@@ -70,7 +66,7 @@ export async function updateDraftStatus(messageId, status, extra = {}) {
     pendingDrafts.delete(messageId);
     if (!db) return;
     try {
-        await db.collection(DRAFTS_COLLECTION).doc(String(messageId)).update({
+        await db.collection(COLLECTIONS.DRAFTS).doc(String(messageId)).update({
             status,
             updatedAt: new Date(),
             ...extra,
@@ -87,7 +83,7 @@ export async function updateCardNewsStatus(messageId, status, extra = {}) {
     pendingCardNews.delete(messageId);
     if (!db) return;
     try {
-        await db.collection(CARDNEWS_COLLECTION).doc(String(messageId)).update({
+        await db.collection(COLLECTIONS.CARDNEWS).doc(String(messageId)).update({
             status,
             updatedAt: new Date(),
             ...extra,
@@ -126,17 +122,31 @@ export function setupTTLCleanup() {
         return originalCnDelete(key);
     };
 
+    // editMode에서 참조 중인 messageId 집합을 구한다 (TTL 보호용)
+    function getEditingMessageIds() {
+        const ids = new Set();
+        for (const [, entry] of editMode) {
+            const msgId = typeof entry === 'object' ? entry.messageId : entry;
+            ids.add(msgId);
+        }
+        return ids;
+    }
+
     // 5분 주기 TTL 정리
     setInterval(() => {
         const now = Date.now();
+        const editingIds = getEditingMessageIds();
+
         for (const [key, ts] of draftTimestamps) {
             // 예약 초안(slotKey 있음)은 TTL 정리 대상에서 제외
             if (pendingDrafts.get(key)?.slotKey) continue;
+            // 현재 editMode에서 수정 중인 초안은 TTL 보호
+            if (editingIds.has(key)) continue;
             if (now - ts > DRAFT_TTL_MS) {
                 pendingDrafts.delete(key);
             }
         }
-        // editMode 중 대응하는 draft가 없는 항목 정리
+        // editMode 중 대응하는 draft가 이미 삭제된 항목 정리
         for (const [chatId] of editMode) {
             const entry = editMode.get(chatId);
             const msgId = typeof entry === 'object' ? entry.messageId : entry;
@@ -156,7 +166,7 @@ export async function restoreStateFromFirestore() {
         const now = new Date();
 
         // 대기 중인 초안 복구
-        const draftSnapshot = await db.collection(DRAFTS_COLLECTION)
+        const draftSnapshot = await db.collection(COLLECTIONS.DRAFTS)
             .where('status', '==', 'pending')
             .where('expiresAt', '>', now)
             .get();
@@ -164,26 +174,11 @@ export async function restoreStateFromFirestore() {
         for (const doc of draftSnapshot.docs) {
             const data = doc.data();
             const messageId = Number(doc.id);
-            const draft = {
-                text: data.text,
-                category: data.category,
-                type: data.type,
-                platform: data.platform,
-                imageUrl: data.imageUrl || null,
-                artist: data.artist || null,
-                imageDirection: data.imageDirection || null,
-            };
-            // 예약 초안 필드 복구
-            if (data.slotKey) {
-                draft.slotKey = data.slotKey;
-                draft.scheduledHour = data.scheduledHour;
-                draft.dateLabel = data.dateLabel || null;
-            }
-            pendingDrafts.set(messageId, draft);
+            pendingDrafts.set(messageId, normalizeDraft(data));
         }
 
         // 대기 중인 카드뉴스 복구
-        const cnSnapshot = await db.collection(CARDNEWS_COLLECTION)
+        const cnSnapshot = await db.collection(COLLECTIONS.CARDNEWS)
             .where('status', '==', 'pending')
             .where('expiresAt', '>', now)
             .get();

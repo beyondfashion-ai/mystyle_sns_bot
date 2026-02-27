@@ -1,33 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
-import { readFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import { getEditorialDirectionPrompt } from './editorialEvolution.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-/**
- * 전략서와 SOP 문서를 로드하여 AI 컨텍스트로 사용한다.
- */
-function loadStrategyContext() {
-    const docsDir = join(__dirname, '..', 'docs');
-    const files = [
-        { path: join(docsDir, 'brand_strategy.md'), label: '브랜딩 전략' },
-        { path: join(docsDir, 'editorial_strategy.md'), label: '에디토리얼 전략' },
-        { path: join(docsDir, 'sop', 'editor_sop.md'), label: '에디터 SOP' },
-    ];
-
-    const sections = [];
-    for (const { path, label } of files) {
-        if (existsSync(path)) {
-            const content = readFileSync(path, 'utf-8');
-            sections.push(`=== ${label} ===\n${content}`);
-        }
-    }
-    return sections.join('\n\n');
-}
+import { loadStrategyContext } from './contentGenerator.js';
+import { sanitizeForPrompt } from './utils.js';
 
 /**
  * Step 2: Claude Sonnet으로 Gemini 초안을 최종 SNS 본문으로 폴리싱한다.
@@ -93,7 +68,7 @@ ${strategyContext}
 ${editorialPrompt ? `\n${editorialPrompt}\n` : ''}
 ## 요청
 지금 봇 관리자가 텔레그램을 통해 "${platform}" 플랫폼에 올릴 **새로운 콘텐츠 기획 포맷(템플릿)** 아이디어를 물어봤습니다.
-사용자의 요청사항: "${requestText}"
+사용자의 요청사항: "${sanitizeForPrompt(requestText, 500)}"
 
 ## 핵심 규칙
 1. **K-POP 비율 최소 50% (절대 규칙)**: K-POP 맥락(아티스트/컴백/활동)이 반드시 50% 이상이어야 하며, 패션 분석이 K-POP을 넘어서는 안 된다.
