@@ -186,7 +186,7 @@ export function createTelegramBot() {
     bot.onText(/\/start/, (msg) => {
         if (!isAdmin(msg.chat.id)) return;
         const welcome = [
-            '\ud83e\udd16 *mystyleKPOP SNS Bot \uba54\uc778 \uba54\ub274*',
+            '\ud83e\udd16 *KALEI SNS Bot \uba54\uc778 \uba54\ub274*',
             '',
             '\uba85\ub839\uc5b4\ub97c \uc678\uc6b8 \ud544\uc694 \uc5c6\uc774 \uc544\ub798 \ubc84\ud2bc\uc744 \ub20c\ub7ec \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uc138\uc694.',
             '(\ucc44\ud305\ucc3d \uc606\uc758 [`Menu`] \ubc84\ud2bc\uc744 \ub20c\ub7ec\ub3c4 \uba85\ub839\uc5b4 \ubaa9\ub85d\uc774 \ub098\uc635\ub2c8\ub2e4.)',

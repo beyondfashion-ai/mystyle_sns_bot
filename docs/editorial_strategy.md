@@ -1,4 +1,4 @@
-# mystyleKPOP Editorial Strategy
+# KALEI Editorial Strategy
 
 ## 글쓰기 핵심 원칙
 

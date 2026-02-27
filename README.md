@@ -1,6 +1,6 @@
 # AI Fashion K-POP Magazine Bot (Standalone)
 
-mystyleKPOP 브랜드를 **"글로벌 AI 패션 K-POP 매거진"**으로 포지셔닝하여, 아티스트 실명을 활용한 고유의 에디토리얼 콘텐츠를 자동으로 운영하기 위한 전용 프로젝트 폴더입니다.
+KALEI 브랜드를 **"글로벌 AI 패션 K-POP 매거진"**으로 포지셔닝하여, 아티스트 실명을 활용한 고유의 에디토리얼 콘텐츠를 자동으로 운영하기 위한 전용 프로젝트 폴더입니다.
 
 ## 📁 프로젝트 구조
 - `src/bot.js`: 핵심 SNS 게시 로직 (X, Instagram 통합).

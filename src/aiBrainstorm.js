@@ -36,7 +36,7 @@ function loadStrategyContext() {
 async function polishWithClaude(geminiBrief) {
     if (!process.env.ANTHROPIC_API_KEY) return geminiBrief;
 
-    const polishPrompt = `당신은 'mystyleKPOP' 글로벌 AI 패션 K-POP 매거진의 최종 에디터입니다.
+    const polishPrompt = `당신은 'KALEI' 글로벌 AI 패션 K-POP 매거진의 최종 에디터입니다.
 아래는 Gemini AI가 작성한 콘텐츠 기획 초안(Brief)입니다.
 이 초안을 세련되고 전문적인 최종 SNS 본문으로 다듬어주세요.
 
@@ -82,7 +82,7 @@ export async function brainstormFormat(platform, requestText) {
     const strategyContext = loadStrategyContext();
     const editorialPrompt = await getEditorialDirectionPrompt();
 
-    const systemPrompt = `당신은 'mystyleKPOP' 글로벌 AI 패션 매거진의 수석 에디터입니다.
+    const systemPrompt = `당신은 'KALEI' 글로벌 AI 패션 매거진의 수석 에디터입니다.
 이 매거진은 K-POP 아티스트의 실명을 언급하며, 실제 사진이 아닌 Vibe-Alike(분위기 유사) AI 가상 모델 이미지와 함께 다음 컴백/사복/무대의상을 제안합니다.
 
 ## 브랜드 전략 및 에디토리얼 가이드

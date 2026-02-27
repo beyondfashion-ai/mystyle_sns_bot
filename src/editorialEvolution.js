@@ -17,7 +17,7 @@ const DOC_IDS = {
 async function refineWithClaude(level, geminiResult, previousDirective) {
     if (!process.env.ANTHROPIC_API_KEY) return geminiResult;
 
-    const refinePrompt = `당신은 mystyleKPOP AI 패션 K-POP 매거진의 편집장입니다.
+    const refinePrompt = `당신은 KALEI AI 패션 K-POP 매거진의 편집장입니다.
 아래는 AI 분석 엔진이 생성한 ${level} 에디토리얼 방향 초안입니다. 이를 검토하고 더 날카롭게 다듬어주세요.
 
 ## 초안
@@ -147,7 +147,7 @@ JSON 형식으로만 응답하세요:
  */
 export async function runDailyEditorial() {
     console.log('[Editorial] 일간 에디토리얼 분석 시작');
-    await runEditorialAnalysis('daily', `당신은 mystyleKPOP AI 패션 매거진의 에디토리얼 디렉터입니다.
+    await runEditorialAnalysis('daily', `당신은 KALEI AI 패션 매거진의 에디토리얼 디렉터입니다.
 
 ## 임무: 일간 에디토리얼 미세 조정
 어제의 SNS 게시물 반응과 트렌드를 기반으로 오늘의 콘텐츠 톤과 초점을 미세 조정하세요.
@@ -165,7 +165,7 @@ K-POP 콘텐츠가 항상 중심이다. 패션은 K-POP 맥락을 보강하는 �
  */
 export async function runWeeklyEditorial() {
     console.log('[Editorial] 주간 에디토리얼 분석 시작');
-    await runEditorialAnalysis('weekly', `당신은 mystyleKPOP AI 패션 매거진의 에디토리얼 디렉터입니다.
+    await runEditorialAnalysis('weekly', `당신은 KALEI AI 패션 매거진의 에디토리얼 디렉터입니다.
 
 ## 임무: 주간 에디토리얼 방향 조정
 지난 1주일의 성과 데이터와 트렌드를 분석하여 다음 주 콘텐츠 방향을 제시하세요.
@@ -183,7 +183,7 @@ K-POP 콘텐츠가 항상 중심이다. 패션은 K-POP 맥락을 보강하는 �
  */
 export async function runMonthlyEditorial() {
     console.log('[Editorial] 월간 에디토리얼 분석 시작');
-    await runEditorialAnalysis('monthly', `당신은 mystyleKPOP AI 패션 매거진의 에디토리얼 디렉터입니다.
+    await runEditorialAnalysis('monthly', `당신은 KALEI AI 패션 매거진의 에디토리얼 디렉터입니다.
 
 ## 임무: 월간 에디토리얼 전략 재평가
 지난 한 달의 전체 성과와 트렌드를 기반으로 다음 달 전략을 수립하세요.
@@ -201,7 +201,7 @@ K-POP 콘텐츠가 항상 중심이다. 패션은 K-POP 맥락을 보강하는 �
  */
 export async function runQuarterlyEditorial() {
     console.log('[Editorial] 분기 에디토리얼 분석 시작');
-    await runEditorialAnalysis('quarterly', `당신은 mystyleKPOP AI 패션 매거진의 에디토리얼 디렉터입니다.
+    await runEditorialAnalysis('quarterly', `당신은 KALEI AI 패션 매거진의 에디토리얼 디렉터입니다.
 
 ## 임무: 분기 에디토리얼 비전 재설정
 지난 분기의 전체 성과를 리뷰하고 다음 분기의 큰 방향성을 설정하세요.

@@ -1,7 +1,7 @@
 {
-    "name": "mystyle-sns-bot",
+    "name": "kalei",
     "version": "1.0.0",
-    "description": "Standalone SNS Automation Bot for mystyleKPOP",
+    "description": "Standalone SNS Automation Bot for KALEI",
     "main": "src/bot.js",
     "scripts": {
         "start": "node src/server.js",

@@ -1,4 +1,4 @@
-# mystyleKPOP Brand Strategy
+# KALEI Brand Strategy
 
 ## 우리는 누구인가
 
@@ -47,7 +47,7 @@ K-POP과 패션의 교차점에 있는 AI 매거진.
 - 다크 베이스 + 카테고리별 포인트 컬러
 - K-POP 에스테틱 (컨셉포토 무드) + 하이패션 에디토리얼 결합
 - Vibe-Alike AI 가상 모델 (실제 아티스트 아님)
-- mystyleKPOP 로고 일관 배치
+- KALEI 로고 일관 배치
 
 ---
 

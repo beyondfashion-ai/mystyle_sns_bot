@@ -2,7 +2,7 @@ import { postToSNS } from "../src/bot.js";
 
 const testData = {
     platforms: ["x"],
-    text: "Hello from standalone mystyle SNS Bot! #KPOP #AI",
+    text: "Hello from standalone KALEI SNS Bot! #KPOP #AI",
     imageUrls: ["https://firebasestorage.googleapis.com/v0/b/my-style-5649d.appspot.com/o/samples%2Fsample_outfit.png?alt=media"]
 };
 

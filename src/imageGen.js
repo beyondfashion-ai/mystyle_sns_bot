@@ -151,7 +151,7 @@ export async function generateCardNewsCover({ title, artist, type }) {
     const prompt =
         `High-end fashion magazine cover poster design, ${artistHint}. ` +
         `Title text: "${title}". ` +
-        'mystyleKPOP branding, sleek modern typography, ' +
+        'KALEI branding, sleek modern typography, ' +
         'luxurious gradient background, editorial layout, ' +
         'professional graphic design quality.';
 

@@ -51,7 +51,7 @@ const PORT = process.env.PORT || 3000;
 
 // Health check
 app.get('/', (req, res) => {
-    res.json({ status: 'ok', service: 'mystyleKPOP SNS Bot' });
+    res.json({ status: 'ok', service: 'KALEI SNS Bot' });
 });
 
 app.get('/health', (req, res) => {
@@ -65,7 +65,7 @@ if (bot) {
 }
 
 const server = app.listen(PORT, () => {
-    console.log(`[Server] mystyleKPOP SNS Bot 서버 시작 (port: ${PORT})`);
+    console.log(`[Server] KALEI SNS Bot 서버 시작 (port: ${PORT})`);
 });
 
 // ===== Graceful Shutdown =====
