@@ -9,6 +9,7 @@ import { addFormat, getFormats, deleteFormat, getRandomFormatDraft } from './for
 import { brainstormFormat } from './aiBrainstorm.js';
 import { runAnalyticsWithReport } from './analytics.js';
 import { getEditorialDirectionPrompt } from './editorialEvolution.js';
+import { getNewsPrompt, getNewsDigestMessage, collectNews } from './newsCollector.js';
 
 // 초안 상태 관리
 const pendingDrafts = new Map();   // messageId -> { text, category, type, platform, imageUrl, artist }
@@ -147,7 +148,8 @@ export function createTelegramBot() {
         { command: '/askai', description: 'AI와 기획 아이데이션' },
         { command: '/status', description: '현재 API 호출 잔여량 보기' },
         { command: '/report', description: '주간 성과 리포트 보기' },
-        { command: '/listformat', description: 'DB 포맷 목록 보기' }
+        { command: '/listformat', description: 'DB 포맷 목록 보기' },
+        { command: '/news', description: '최신 뉴스 다이제스트 보기' }
     ]).catch(err => console.error('[Telegram] setMyCommands 실패:', err.message));
 
     function isAdmin(chatId) {
@@ -228,7 +230,8 @@ export function createTelegramBot() {
         const editorialPrompt = await getEditorialDirectionPrompt();
         const trendPrompt = await getTrendWeightsPrompt();
         const externalPrompt = await getExternalTrendPrompt();
-        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        const newsPrompt = await getNewsPrompt();
+        const prompts = [editorialPrompt, trendPrompt, externalPrompt, newsPrompt].filter(Boolean).join('\n');
         if (prompts) {
             draft.text = `${prompts}\n\n${draft.text}`;
         }
@@ -268,7 +271,8 @@ export function createTelegramBot() {
         const editorialPrompt = await getEditorialDirectionPrompt();
         const trendPrompt = await getTrendWeightsPrompt();
         const externalPrompt = await getExternalTrendPrompt();
-        const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+        const newsPrompt = await getNewsPrompt();
+        const prompts = [editorialPrompt, trendPrompt, externalPrompt, newsPrompt].filter(Boolean).join('\n');
         if (prompts) {
             draft.text = `${prompts}\n\n${draft.text}`;
         }
@@ -434,6 +438,27 @@ export function createTelegramBot() {
         }
     }
     bot.onText(/\/report/, handleReport);
+
+    // /news - 최신 뉴스 다이제스트
+    async function handleNews(msg) {
+        if (!isAdmin(msg.chat.id)) return;
+        const digest = await getNewsDigestMessage();
+        await bot.sendMessage(msg.chat.id, digest, { parse_mode: 'Markdown' });
+    }
+    bot.onText(/\/news/, handleNews);
+
+    // /collectnews - 수동 뉴스 수집 트리거
+    bot.onText(/\/collectnews/, async (msg) => {
+        if (!isAdmin(msg.chat.id)) return;
+        await bot.sendMessage(msg.chat.id, '📰 뉴스 수집 시작...');
+        try {
+            await collectNews();
+            const digest = await getNewsDigestMessage();
+            await bot.sendMessage(msg.chat.id, `✅ 수집 완료!\n\n${digest}`, { parse_mode: 'Markdown' });
+        } catch (err) {
+            await bot.sendMessage(msg.chat.id, `❌ 뉴스 수집 실패: ${err.message}`);
+        }
+    });
 
     // ===== 콜백 핸들러 =====
     bot.on('callback_query', async (query) => {
@@ -821,7 +846,8 @@ export async function sendScheduledDraftX(bot) {
     const editorialPrompt = await getEditorialDirectionPrompt();
     const trendPrompt = await getTrendWeightsPrompt();
     const externalPrompt = await getExternalTrendPrompt();
-    const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+    const newsPrompt = await getNewsPrompt();
+    const prompts = [editorialPrompt, trendPrompt, externalPrompt, newsPrompt].filter(Boolean).join('\n');
     if (prompts) {
         draft.text = `${prompts}\n\n${draft.text}`;
     }
@@ -874,7 +900,8 @@ export async function sendScheduledDraftIG(bot) {
     const editorialPrompt = await getEditorialDirectionPrompt();
     const trendPrompt = await getTrendWeightsPrompt();
     const externalPrompt = await getExternalTrendPrompt();
-    const prompts = [editorialPrompt, trendPrompt, externalPrompt].filter(Boolean).join('\n');
+    const newsPrompt = await getNewsPrompt();
+    const prompts = [editorialPrompt, trendPrompt, externalPrompt, newsPrompt].filter(Boolean).join('\n');
     if (prompts) {
         draft.text = `${prompts}\n\n${draft.text}`;
     }
