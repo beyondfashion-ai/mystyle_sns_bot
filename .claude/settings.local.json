@@ -35,7 +35,13 @@
       "Bash(\"C:/Users/cw11/gh-cli/gh_2.87.3_windows_amd64/bin/gh.exe\" --version)",
       "Bash(dir:*)",
       "Bash(powershell \"Test-Path C:\\\\Users\\\\cw11\\\\gh-cli; if\\(Test-Path C:\\\\Users\\\\cw11\\\\gh-cli\\){Get-ChildItem C:\\\\Users\\\\cw11\\\\gh-cli -Recurse -Name | Select-Object -First 10}\")",
-      "Bash(powershell \"Test-Path C:\\\\Users\\\\cw11\\\\gh.zip; \\(Get-Item C:\\\\Users\\\\cw11\\\\gh.zip\\).Length\")"
+      "Bash(powershell \"Test-Path C:\\\\Users\\\\cw11\\\\gh.zip; \\(Get-Item C:\\\\Users\\\\cw11\\\\gh.zip\\).Length\")",
+      "Bash(cd /c/Users/User/mystyle_sns_bot && gh repo rename kalei-sns-bot --yes 2>&1)",
+      "Bash(echo gh CLI not found:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && gh --version 2>&1)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && gh auth status 2>&1)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && cd /c/Users/User/mystyle_sns_bot && gh repo rename kalei-sns-bot --yes 2>&1)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && cd /c/Users/User/mystyle_sns_bot && git remote -v 2>&1)"
     ]
   }
 }
